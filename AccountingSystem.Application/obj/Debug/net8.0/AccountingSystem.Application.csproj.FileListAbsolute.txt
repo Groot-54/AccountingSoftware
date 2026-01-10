@@ -1,0 +1,15 @@
+C:\Users\Salmaan\Desktop\AccountingSystem\AccountingSystem.Application\bin\Debug\net8.0\AccountingSystem.Application.deps.json
+C:\Users\Salmaan\Desktop\AccountingSystem\AccountingSystem.Application\bin\Debug\net8.0\AccountingSystem.Application.dll
+C:\Users\Salmaan\Desktop\AccountingSystem\AccountingSystem.Application\bin\Debug\net8.0\AccountingSystem.Application.pdb
+C:\Users\Salmaan\Desktop\AccountingSystem\AccountingSystem.Application\bin\Debug\net8.0\AccountingSystem.Core.dll
+C:\Users\Salmaan\Desktop\AccountingSystem\AccountingSystem.Application\bin\Debug\net8.0\AccountingSystem.Core.pdb
+C:\Users\Salmaan\Desktop\AccountingSystem\AccountingSystem.Application\obj\Debug\net8.0\AccountingSystem.Application.csproj.AssemblyReference.cache
+C:\Users\Salmaan\Desktop\AccountingSystem\AccountingSystem.Application\obj\Debug\net8.0\AccountingSystem.Application.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Salmaan\Desktop\AccountingSystem\AccountingSystem.Application\obj\Debug\net8.0\AccountingSystem.Application.AssemblyInfoInputs.cache
+C:\Users\Salmaan\Desktop\AccountingSystem\AccountingSystem.Application\obj\Debug\net8.0\AccountingSystem.Application.AssemblyInfo.cs
+C:\Users\Salmaan\Desktop\AccountingSystem\AccountingSystem.Application\obj\Debug\net8.0\AccountingSystem.Application.csproj.CoreCompileInputs.cache
+C:\Users\Salmaan\Desktop\AccountingSystem\AccountingSystem.Application\obj\Debug\net8.0\Accounti.17B664B5.Up2Date
+C:\Users\Salmaan\Desktop\AccountingSystem\AccountingSystem.Application\obj\Debug\net8.0\AccountingSystem.Application.dll
+C:\Users\Salmaan\Desktop\AccountingSystem\AccountingSystem.Application\obj\Debug\net8.0\refint\AccountingSystem.Application.dll
+C:\Users\Salmaan\Desktop\AccountingSystem\AccountingSystem.Application\obj\Debug\net8.0\AccountingSystem.Application.pdb
+C:\Users\Salmaan\Desktop\AccountingSystem\AccountingSystem.Application\obj\Debug\net8.0\ref\AccountingSystem.Application.dll
