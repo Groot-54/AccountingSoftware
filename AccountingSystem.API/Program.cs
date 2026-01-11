@@ -11,6 +11,9 @@ using FluentValidation;
 using FluentValidation.AspNetCore;
 using AccountingSystem.Application.Interfaces;
 using AccountingSystem.Application.Commands.CreateCustomer;
+using AccountingSystem.API.Extensions;
+
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -131,5 +134,7 @@ app.MapGet("/api/health", () => Results.Ok(new
     status = "healthy", 
     timestamp = DateTime.UtcNow 
 }));
+
+await app.SeedDatabase();
 
 app.Run();

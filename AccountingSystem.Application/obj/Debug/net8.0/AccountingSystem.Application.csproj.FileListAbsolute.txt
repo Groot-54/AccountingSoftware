@@ -13,3 +13,4 @@ C:\Users\Salmaan\Desktop\AccountingSystem\AccountingSystem.Application\obj\Debug
 C:\Users\Salmaan\Desktop\AccountingSystem\AccountingSystem.Application\obj\Debug\net8.0\refint\AccountingSystem.Application.dll
 C:\Users\Salmaan\Desktop\AccountingSystem\AccountingSystem.Application\obj\Debug\net8.0\AccountingSystem.Application.pdb
 C:\Users\Salmaan\Desktop\AccountingSystem\AccountingSystem.Application\obj\Debug\net8.0\ref\AccountingSystem.Application.dll
+C:\Users\Salmaan\Desktop\AccountingSystem\AccountingSystem.Application\obj\Debug\net8.0\AccountingSystem.Application.sourcelink.json

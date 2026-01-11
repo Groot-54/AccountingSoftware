@@ -17,3 +17,4 @@ C:\Users\Salmaan\Desktop\AccountingSystem\AccountingSystem.Infrastructure\obj\De
 C:\Users\Salmaan\Desktop\AccountingSystem\AccountingSystem.Infrastructure\obj\Debug\net8.0\AccountingSystem.Infrastructure.pdb
 C:\Users\Salmaan\Desktop\AccountingSystem\AccountingSystem.Infrastructure\obj\Debug\net8.0\AccountingSystem.Infrastructure.genruntimeconfig.cache
 C:\Users\Salmaan\Desktop\AccountingSystem\AccountingSystem.Infrastructure\obj\Debug\net8.0\ref\AccountingSystem.Infrastructure.dll
+C:\Users\Salmaan\Desktop\AccountingSystem\AccountingSystem.Infrastructure\obj\Debug\net8.0\AccountingSystem.Infrastructure.sourcelink.json

@@ -9,3 +9,4 @@ C:\Users\Salmaan\Desktop\AccountingSystem\AccountingSystem.Core\obj\Debug\net8.0
 C:\Users\Salmaan\Desktop\AccountingSystem\AccountingSystem.Core\obj\Debug\net8.0\refint\AccountingSystem.Core.dll
 C:\Users\Salmaan\Desktop\AccountingSystem\AccountingSystem.Core\obj\Debug\net8.0\AccountingSystem.Core.pdb
 C:\Users\Salmaan\Desktop\AccountingSystem\AccountingSystem.Core\obj\Debug\net8.0\ref\AccountingSystem.Core.dll
+C:\Users\Salmaan\Desktop\AccountingSystem\AccountingSystem.Core\obj\Debug\net8.0\AccountingSystem.Core.sourcelink.json
