@@ -128,3 +128,4 @@ C:\Users\Salmaan\Desktop\AccountingSystem\AccountingSystem.Tests\obj\Debug\net8.
 C:\Users\Salmaan\Desktop\AccountingSystem\AccountingSystem.Tests\obj\Debug\net8.0\AccountingSystem.Tests.pdb
 C:\Users\Salmaan\Desktop\AccountingSystem\AccountingSystem.Tests\obj\Debug\net8.0\AccountingSystem.Tests.genruntimeconfig.cache
 C:\Users\Salmaan\Desktop\AccountingSystem\AccountingSystem.Tests\obj\Debug\net8.0\ref\AccountingSystem.Tests.dll
+C:\Users\Salmaan\Desktop\AccountingSystem\AccountingSystem.Tests\obj\Debug\net8.0\AccountingSystem.Tests.sourcelink.json

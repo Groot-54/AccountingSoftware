@@ -4,7 +4,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { LoginForm } from './features/auth/components/LoginForm';
 import { Layout } from './components/shared/Layout';
-import { Dashboard } from './pages/Dashboard';
+import Dashboard from './pages/Dashboard';
 import Customers from './pages/Customers';
 import CreditEntry from './pages/CreditEntry';
 import DebitEntry from './pages/DebitEntry';

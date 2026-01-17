@@ -1,161 +1,267 @@
-// src/pages/Dashboard.tsx
-import React from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Users, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
-import api from '@/lib/api';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { useState } from 'react';
+import { Users, TrendingUp, TrendingDown, DollarSign, Calendar, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { useDashboardOverview, useDashboardStats } from '../features/dashboard/hooks/useDashboard';
+import { useNavigate } from 'react-router-dom';
 
-interface DashboardStats {
-  totalCustomers: number;
-  activeCustomers: number;
-  totalCredit: number;
-  totalDebit: number;
-  netBalance: number;
-  currentYearCredit: number;
-  currentYearDebit: number;
-}
+export default function Dashboard() {
+  const navigate = useNavigate();
+  const currentYear = new Date().getFullYear();
+  const [selectedYear, setSelectedYear] = useState(currentYear);
 
-interface RecentTransaction {
-  id: number;
-  customerName: string;
-  transactionDate: string;
-  description: string;
-  creditAmount: number;
-  debitAmount: number;
-  runningBalance: number;
-}
+  const { data: overview, isLoading: overviewLoading } = useDashboardOverview(selectedYear);
+  const { data: stats } = useDashboardStats();
 
-export const Dashboard: React.FC = () => {
-  // Fetch dashboard stats
-  const { data: stats, isLoading: statsLoading } = useQuery({
-    queryKey: ['dashboardStats'],
-    queryFn: async (): Promise<DashboardStats> => {
-      const response = await api.get('/dashboard/stats');
-      return response.data;
-    },
-  });
-
-  // Fetch recent transactions
-  const { data: recentTransactions, isLoading: transactionsLoading } = useQuery({
-    queryKey: ['recentTransactions'],
-    queryFn: async (): Promise<RecentTransaction[]> => {
-      const response = await api.get('/dashboard/recent-transactions', {
-        params: { limit: 10 }
-      });
-      return response.data;
-    },
-  });
-
-  const statCards = [
-    {
-      label: 'Total Customers',
-      value: stats?.totalCustomers.toString() || '0',
-      subValue: `${stats?.activeCustomers || 0} active`,
-      icon: Users,
-      color: 'bg-blue-500',
-      textColor: 'text-blue-600',
-    },
-    {
-      label: 'Total Credit',
-      value: formatCurrency(stats?.totalCredit || 0),
-      subValue: `This year: ${formatCurrency(stats?.currentYearCredit || 0)}`,
-      icon: TrendingUp,
-      color: 'bg-green-500',
-      textColor: 'text-green-600',
-    },
-    {
-      label: 'Total Debit',
-      value: formatCurrency(stats?.totalDebit || 0),
-      subValue: `This year: ${formatCurrency(stats?.currentYearDebit || 0)}`,
-      icon: TrendingDown,
-      color: 'bg-red-500',
-      textColor: 'text-red-600',
-    },
-    {
-      label: 'Net Balance',
-      value: formatCurrency(stats?.netBalance || 0),
-      subValue: stats?.netBalance && stats.netBalance >= 0 ? 'Surplus' : 'Deficit',
-      icon: DollarSign,
-      color: 'bg-purple-500',
-      textColor: 'text-purple-600',
-    },
-  ];
-
-  if (statsLoading) {
+  if (overviewLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-gray-600">Loading dashboard...</div>
       </div>
     );
   }
 
-  return (
-    <div>
-      <h1 className="text-3xl font-bold mb-6">Dashboard</h1>
+  const formatCurrency = (amount: number) => {
+    return `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {statCards.map((stat, idx) => (
-          <div key={idx} className="bg-white rounded-lg shadow-md p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-500 text-sm mb-1">{stat.label}</p>
-                <p className={`text-2xl font-bold ${stat.textColor}`}>
-                  {stat.value}
-                </p>
-                <p className="text-xs text-gray-400 mt-1">{stat.subValue}</p>
-              </div>
-              <div className={`${stat.color} p-3 rounded-lg text-white`}>
-                <stat.icon size={24} />
-              </div>
-            </div>
-          </div>
-        ))}
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    });
+  };
+
+  const getGrowthColor = (growth: number) => {
+    if (growth > 0) return 'text-green-600';
+    if (growth < 0) return 'text-red-600';
+    return 'text-gray-600';
+  };
+
+  const getGrowthIcon = (growth: number) => {
+    if (growth > 0) return <ArrowUpRight size={16} className="text-green-600" />;
+    if (growth < 0) return <ArrowDownRight size={16} className="text-red-600" />;
+    return null;
+  };
+
+  return (
+    <div className="p-6 max-w-7xl mx-auto">
+      {/* Header */}
+      <div className="mb-6 flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-800">Dashboard</h1>
+          <p className="text-gray-600 mt-1">Overview of your accounting system</p>
+        </div>
+        <div>
+          <select
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(Number(e.target.value))}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            {Array.from({ length: 10 }, (_, i) => currentYear - i).map(year => (
+              <option key={year} value={year}>Year {year}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
-      {/* Recent Transactions */}
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-xl font-bold mb-4">Recent Transactions</h2>
-
-        {transactionsLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+        {/* Total Customers */}
+        <div className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow cursor-pointer"
+             onClick={() => navigate('/customers')}>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-gray-600 text-sm font-medium">Total Customers</p>
+              <p className="text-3xl font-bold text-gray-900 mt-2">{overview?.totalCustomers || 0}</p>
+              <p className="text-sm text-gray-500 mt-1">
+                {overview?.activeCustomers || 0} active
+              </p>
+            </div>
+            <div className="bg-blue-100 p-3 rounded-full">
+              <Users className="text-blue-600" size={24} />
+            </div>
           </div>
-        ) : recentTransactions && recentTransactions.length > 0 ? (
+          {stats && stats.growth.customerGrowth !== 0 && (
+            <div className="mt-4 flex items-center gap-1">
+              {getGrowthIcon(stats.growth.customerGrowth)}
+              <span className={`text-sm font-medium ${getGrowthColor(stats.growth.customerGrowth)}`}>
+                {Math.abs(stats.growth.customerGrowth).toFixed(1)}% from last month
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Total Credit */}
+        <div className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-gray-600 text-sm font-medium">Total Credit</p>
+              <p className="text-3xl font-bold text-green-600 mt-2">
+                {formatCurrency(overview?.totalCredit || 0)}
+              </p>
+              <p className="text-sm text-gray-500 mt-1">This year: ₹{(overview?.totalCredit || 0).toLocaleString()}</p>
+            </div>
+            <div className="bg-green-100 p-3 rounded-full">
+              <TrendingUp className="text-green-600" size={24} />
+            </div>
+          </div>
+          {stats && stats.growth.creditGrowth !== 0 && (
+            <div className="mt-4 flex items-center gap-1">
+              {getGrowthIcon(stats.growth.creditGrowth)}
+              <span className={`text-sm font-medium ${getGrowthColor(stats.growth.creditGrowth)}`}>
+                {Math.abs(stats.growth.creditGrowth).toFixed(1)}% from last month
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Total Debit */}
+        <div className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-gray-600 text-sm font-medium">Total Debit</p>
+              <p className="text-3xl font-bold text-red-600 mt-2">
+                {formatCurrency(overview?.totalDebit || 0)}
+              </p>
+              <p className="text-sm text-gray-500 mt-1">This year: ₹{(overview?.totalDebit || 0).toLocaleString()}</p>
+            </div>
+            <div className="bg-red-100 p-3 rounded-full">
+              <TrendingDown className="text-red-600" size={24} />
+            </div>
+          </div>
+          {stats && stats.growth.debitGrowth !== 0 && (
+            <div className="mt-4 flex items-center gap-1">
+              {getGrowthIcon(stats.growth.debitGrowth)}
+              <span className={`text-sm font-medium ${getGrowthColor(stats.growth.debitGrowth)}`}>
+                {Math.abs(stats.growth.debitGrowth).toFixed(1)}% from last month
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Net Balance */}
+        <div className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-gray-600 text-sm font-medium">Net Balance</p>
+              <p className={`text-3xl font-bold mt-2 ${
+                (overview?.netBalance || 0) >= 0 ? 'text-purple-600' : 'text-orange-600'
+              }`}>
+                {formatCurrency(Math.abs(overview?.netBalance || 0))}
+              </p>
+              <p className="text-sm text-gray-500 mt-1">
+                {(overview?.netBalance || 0) >= 0 ? 'Surplus' : 'Deficit'}
+              </p>
+            </div>
+            <div className={`p-3 rounded-full ${
+              (overview?.netBalance || 0) >= 0 ? 'bg-purple-100' : 'bg-orange-100'
+            }`}>
+              <DollarSign className={
+                (overview?.netBalance || 0) >= 0 ? 'text-purple-600' : 'text-orange-600'
+              } size={24} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Monthly Summary Chart Placeholder */}
+      {overview && overview.monthlySummary.length > 0 && (
+        <div className="bg-white rounded-lg shadow p-6 mb-6">
+          <h2 className="text-xl font-bold text-gray-800 mb-4">Monthly Summary - {selectedYear}</h2>
           <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b bg-gray-50">
-                  <th className="text-left p-3 font-medium text-gray-700">Date</th>
-                  <th className="text-left p-3 font-medium text-gray-700">Customer</th>
-                  <th className="text-left p-3 font-medium text-gray-700">Description</th>
-                  <th className="text-right p-3 font-medium text-gray-700">Credit</th>
-                  <th className="text-right p-3 font-medium text-gray-700">Debit</th>
-                  <th className="text-right p-3 font-medium text-gray-700">Balance</th>
+            <table className="min-w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Month</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Credit</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Debit</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Net Amount</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Transactions</th>
                 </tr>
               </thead>
-              <tbody>
-                {recentTransactions.map((txn) => (
-                  <tr key={txn.id} className="border-b hover:bg-gray-50 transition-colors">
-                    <td className="p-3 text-sm">
-                      {formatDate(txn.transactionDate)}
+              <tbody className="divide-y divide-gray-200">
+                {overview.monthlySummary.map((month) => (
+                  <tr key={month.month} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 text-sm font-medium text-gray-900">{month.monthName}</td>
+                    <td className="px-4 py-3 text-sm text-right text-green-600">{formatCurrency(month.credit)}</td>
+                    <td className="px-4 py-3 text-sm text-right text-red-600">{formatCurrency(month.debit)}</td>
+                    <td className={`px-4 py-3 text-sm text-right font-medium ${
+                      month.netAmount >= 0 ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {formatCurrency(Math.abs(month.netAmount))} {month.netAmount >= 0 ? 'CR' : 'DR'}
                     </td>
-                    <td className="p-3 font-medium">{txn.customerName}</td>
-                    <td className="p-3 text-sm text-gray-600">
-                      {txn.description || '-'}
+                    <td className="px-4 py-3 text-sm text-right text-gray-900">{month.transactionCount}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Recent Transactions */}
+      <div className="bg-white rounded-lg shadow">
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold text-gray-800">Recent Transactions</h2>
+            <button
+              onClick={() => navigate('/expenses')}
+              className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+            >
+              View All →
+            </button>
+          </div>
+        </div>
+
+        {overview && overview.recentTransactions.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Customer
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Date
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Description
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Amount
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Running Balance
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {overview.recentTransactions.map((transaction) => (
+                  <tr key={transaction.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {transaction.customerName}
                     </td>
-                    <td className="p-3 text-right text-green-600 font-medium">
-                      {txn.creditAmount > 0
-                        ? formatCurrency(txn.creditAmount)
-                        : '-'}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <div className="flex items-center gap-2">
+                        <Calendar size={14} className="text-gray-400" />
+                        {formatDate(transaction.transactionDate)}
+                      </div>
                     </td>
-                    <td className="p-3 text-right text-red-600 font-medium">
-                      {txn.debitAmount > 0
-                        ? formatCurrency(txn.debitAmount)
-                        : '-'}
+                    <td className="px-6 py-4 text-sm text-gray-500">
+                      {transaction.description || '-'}
                     </td>
-                    <td className="p-3 text-right font-bold">
-                      {formatCurrency(txn.runningBalance)}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
+                      <span className={`font-medium ${
+                        transaction.type === 'Credit' ? 'text-green-600' : 'text-red-600'
+                      }`}>
+                        {transaction.type === 'Credit' ? '+' : '-'}{formatCurrency(transaction.amount)}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-gray-900">
+                      {formatCurrency(Math.abs(transaction.runningBalance))} 
+                      <span className="text-xs ml-1">
+                        {transaction.runningBalance >= 0 ? 'CR' : 'DR'}
+                      </span>
                     </td>
                   </tr>
                 ))}
@@ -163,41 +269,57 @@ export const Dashboard: React.FC = () => {
             </table>
           </div>
         ) : (
-          <div className="text-center py-8 text-gray-500">
-            No transactions yet
+          <div className="p-12 text-center text-gray-500">
+            <Calendar size={48} className="mx-auto mb-4 text-gray-400" />
+            <p className="text-lg font-medium">No transactions yet</p>
+            <p className="text-sm mt-1">Start by creating a credit or debit entry</p>
+            <div className="mt-6 flex gap-3 justify-center">
+              <button
+                onClick={() => navigate('/credit-entry')}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              >
+                Credit Entry
+              </button>
+              <button
+                onClick={() => navigate('/debit-entry')}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                Debit Entry
+              </button>
+            </div>
           </div>
         )}
       </div>
 
-      {/* Quick Actions (Optional) */}
+      {/* Quick Actions */}
       <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
         <button
-          onClick={() => window.location.href = '/customers'}
-          className="bg-white p-4 rounded-lg shadow-md hover:shadow-lg transition-shadow text-left"
+          onClick={() => navigate('/customers')}
+          className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-6 rounded-lg shadow hover:shadow-lg transition-all hover:scale-105"
         >
-          <Users className="text-blue-600 mb-2" size={24} />
-          <h3 className="font-semibold">Manage Customers</h3>
-          <p className="text-sm text-gray-600">Add or edit customer details</p>
+          <Users size={24} className="mb-2" />
+          <h3 className="font-bold text-lg">Manage Customers</h3>
+          <p className="text-sm text-blue-100 mt-1">Add or edit customer details</p>
         </button>
 
         <button
-          onClick={() => window.location.href = '/credit'}
-          className="bg-white p-4 rounded-lg shadow-md hover:shadow-lg transition-shadow text-left"
+          onClick={() => navigate('/credit-entry')}
+          className="bg-gradient-to-r from-green-500 to-green-600 text-white p-6 rounded-lg shadow hover:shadow-lg transition-all hover:scale-105"
         >
-          <TrendingUp className="text-green-600 mb-2" size={24} />
-          <h3 className="font-semibold">Credit Entry</h3>
-          <p className="text-sm text-gray-600">Record payment received</p>
+          <TrendingUp size={24} className="mb-2" />
+          <h3 className="font-bold text-lg">Credit Entry</h3>
+          <p className="text-sm text-green-100 mt-1">Record payment received</p>
         </button>
 
         <button
-          onClick={() => window.location.href = '/debit'}
-          className="bg-white p-4 rounded-lg shadow-md hover:shadow-lg transition-shadow text-left"
+          onClick={() => navigate('/debit-entry')}
+          className="bg-gradient-to-r from-red-500 to-red-600 text-white p-6 rounded-lg shadow hover:shadow-lg transition-all hover:scale-105"
         >
-          <TrendingDown className="text-red-600 mb-2" size={24} />
-          <h3 className="font-semibold">Debit Entry</h3>
-          <p className="text-sm text-gray-600">Record payment made</p>
+          <TrendingDown size={24} className="mb-2" />
+          <h3 className="font-bold text-lg">Debit Entry</h3>
+          <p className="text-sm text-red-100 mt-1">Record payment made</p>
         </button>
       </div>
     </div>
   );
-};
+}

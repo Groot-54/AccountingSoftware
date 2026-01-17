@@ -1,17 +1,30 @@
 // src/features/transactions/api/transactionsApi.ts
 import api from '@/lib/api';
-import type { 
-  Transaction, 
-  CreateTransactionDto, 
+import type {
+  Transaction,
+  CreateTransactionDto,
   UpdateTransactionDto,
-  TransactionFilters,
-  BulkDeleteRequest 
+  DeleteTransactionDto
 } from '../types/transaction.types';
 
 export const transactionsApi = {
-  // Get all transactions with filters
-  getAll: async (filters?: TransactionFilters): Promise<Transaction[]> => {
-    const response = await api.get('/transactions', { params: filters });
+  // Get all transactions
+  getAll: async (params?: {
+    customerId?: number;
+    year?: number;
+    startDate?: string;
+    endDate?: string;
+    type?: 'Credit' | 'Debit';
+  }): Promise<Transaction[]> => {
+    const queryParams = new URLSearchParams();
+    if (params?.customerId) queryParams.append('customerId', params.customerId.toString());
+    if (params?.year) queryParams.append('year', params.year.toString());
+    if (params?.startDate) queryParams.append('startDate', params.startDate);
+    if (params?.endDate) queryParams.append('endDate', params.endDate);
+    if (params?.type) queryParams.append('type', params.type);
+
+    const queryString = queryParams.toString();
+    const response = await api.get(`/transactions${queryString ? '?' + queryString : ''}`);
     return response.data;
   },
 
@@ -22,61 +35,35 @@ export const transactionsApi = {
   },
 
   // Create credit transaction
-  createCredit: async (data: Omit<CreateTransactionDto, 'type'>): Promise<Transaction> => {
-    const response = await api.post('/transactions/credit', {
-      ...data,
-      type: 'CREDIT'
-    });
+  createCredit: async (data: CreateTransactionDto): Promise<{ id: number; message: string }> => {
+    const response = await api.post('/transactions/credit', data);
     return response.data;
   },
 
   // Create debit transaction
-  createDebit: async (data: Omit<CreateTransactionDto, 'type'>): Promise<Transaction> => {
-    const response = await api.post('/transactions/debit', {
-      ...data,
-      type: 'DEBIT'
-    });
+  createDebit: async (data: CreateTransactionDto): Promise<{ id: number; message: string }> => {
+    const response = await api.post('/transactions/debit', data);
     return response.data;
   },
 
   // Update transaction
-  update: async (id: number, data: UpdateTransactionDto): Promise<Transaction> => {
+  update: async (id: number, data: UpdateTransactionDto): Promise<{ message: string }> => {
     const response = await api.put(`/transactions/${id}`, data);
     return response.data;
   },
 
-  // Delete single transaction (requires password confirmation)
-  delete: async (id: number, password: string): Promise<void> => {
-    await api.delete(`/transactions/${id}`, {
-      headers: { 'X-Password-Confirmation': password }
+  // Delete transaction
+  delete: async (id: number, password: string): Promise<{ message: string }> => {
+    const response = await api.delete(`/transactions/${id}`, {
+      data: { password } as DeleteTransactionDto
     });
+    return response.data;
   },
 
-  // Bulk delete transactions (requires password confirmation)
-  bulkDelete: async (data: BulkDeleteRequest): Promise<void> => {
-    await api.post('/transactions/bulk-delete', data);
-  },
-
-  // Get customer transactions
+  // Get transactions by customer
   getByCustomer: async (customerId: number, year?: number): Promise<Transaction[]> => {
-    const params = year ? { year } : {};
-    const response = await api.get(`/customers/${customerId}/transactions`, { params });
+    const yearParam = year ? `?year=${year}` : '';
+    const response = await api.get(`/transactions/customer/${customerId}${yearParam}`);
     return response.data;
-  },
-
-  // Get year-wise transactions
-  getByYear: async (year: number): Promise<Transaction[]> => {
-    const response = await api.get('/transactions', {
-      params: { year }
-    });
-    return response.data;
-  },
-
-  // Get transactions by date range
-  getByDateRange: async (startDate: string, endDate: string): Promise<Transaction[]> => {
-    const response = await api.get('/transactions', {
-      params: { startDate, endDate }
-    });
-    return response.data;
-  },
+  }
 };

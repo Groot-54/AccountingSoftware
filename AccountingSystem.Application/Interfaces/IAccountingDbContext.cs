@@ -8,6 +8,7 @@ namespace AccountingSystem.Application.Interfaces
     public interface IAccountingDbContext
     {
         DbSet<Customer> Customers { get; }
+        DbSet<User> Users { get; }
         Task<int> SaveChangesAsync(CancellationToken cancellationToken);
     }
 }

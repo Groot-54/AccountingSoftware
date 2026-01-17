@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "ub5OB24Uluo=",
+  "dgSpecHash": "j/qTaR1b7Qc=",
   "success": true,
   "projectFilePath": "C:\\Users\\Salmaan\\Desktop\\AccountingSystem\\AccountingSystem.API\\AccountingSystem.API.csproj",
   "expectedPackageFiles": [
@@ -13,6 +13,8 @@
     "C:\\Users\\Salmaan\\.nuget\\packages\\mediatr\\14.0.0\\mediatr.14.0.0.nupkg.sha512",
     "C:\\Users\\Salmaan\\.nuget\\packages\\mediatr.contracts\\2.0.1\\mediatr.contracts.2.0.1.nupkg.sha512",
     "C:\\Users\\Salmaan\\.nuget\\packages\\microsoft.aspnetcore.authentication.jwtbearer\\8.0.0\\microsoft.aspnetcore.authentication.jwtbearer.8.0.0.nupkg.sha512",
+    "C:\\Users\\Salmaan\\.nuget\\packages\\microsoft.aspnetcore.http.abstractions\\2.3.9\\microsoft.aspnetcore.http.abstractions.2.3.9.nupkg.sha512",
+    "C:\\Users\\Salmaan\\.nuget\\packages\\microsoft.aspnetcore.http.features\\2.3.0\\microsoft.aspnetcore.http.features.2.3.0.nupkg.sha512",
     "C:\\Users\\Salmaan\\.nuget\\packages\\microsoft.aspnetcore.openapi\\8.0.22\\microsoft.aspnetcore.openapi.8.0.22.nupkg.sha512",
     "C:\\Users\\Salmaan\\.nuget\\packages\\microsoft.bcl.asyncinterfaces\\6.0.0\\microsoft.bcl.asyncinterfaces.6.0.0.nupkg.sha512",
     "C:\\Users\\Salmaan\\.nuget\\packages\\microsoft.codeanalysis.analyzers\\3.3.3\\microsoft.codeanalysis.analyzers.3.3.3.nupkg.sha512",

@@ -2118,6 +2118,7 @@
         "dependencies": {
           "AccountingSystem.Core": "1.0.0",
           "AutoMapper": "16.0.0",
+          "BCrypt.Net-Next": "4.0.3",
           "FluentValidation": "12.1.1",
           "MediatR": "14.0.0",
           "Microsoft.EntityFrameworkCore": "8.0.0",
@@ -6693,7 +6694,7 @@
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\8.0.416/PortableRuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\8.0.417/PortableRuntimeIdentifierGraph.json"
       }
     }
   }

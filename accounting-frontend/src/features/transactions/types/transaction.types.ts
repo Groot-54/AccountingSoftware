@@ -2,13 +2,13 @@
 export interface Transaction {
   id: number;
   customerId: number;
-  customerName?: string;
+  customerName: string;
   transactionDate: string;
   description?: string;
   debitAmount: number;
   creditAmount: number;
   runningBalance: number;
-  transactionType: 'DEBIT' | 'CREDIT';
+  transactionType: 'Credit' | 'Debit';
   financialYear: number;
   remark?: string;
   isDeleted: boolean;
@@ -19,9 +19,9 @@ export interface Transaction {
 export interface CreateTransactionDto {
   customerId: number;
   transactionDate: string;
-  description?: string;
   amount: number;
-  type: 'DEBIT' | 'CREDIT';
+  description?: string;
+  type: 'Credit' | 'Debit';
   remark?: string;
 }
 
@@ -32,15 +32,6 @@ export interface UpdateTransactionDto {
   remark?: string;
 }
 
-export interface TransactionFilters {
-  customerId?: number;
-  year?: number;
-  startDate?: string;
-  endDate?: string;
-  type?: 'DEBIT' | 'CREDIT';
-}
-
-export interface BulkDeleteRequest {
-  transactionIds: number[];
+export interface DeleteTransactionDto {
   password: string;
 }
