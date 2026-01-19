@@ -1,7 +1,24 @@
+// src/pages/Customers.tsx - REFACTORED VERSION
 import { useState } from 'react';
-import { Plus, Edit2, Trash2, Search, X, CheckCircle } from 'lucide-react';
+import { Plus, Edit2, Trash2, CheckCircle } from 'lucide-react';
 import { useCustomers } from '../features/customers/hooks/useCustomers';
+import { formatCurrency, getBalanceColor } from '@/lib/utils';
 import type { Customer } from '../features/customers/types/customer.types';
+
+// Shared Components
+import { 
+  Button, 
+  Input, 
+  Select, 
+  Modal, 
+  Table, 
+  Badge, 
+  EmptyState, 
+  LoadingSpinner,
+  Alert
+} from '@/components/ui';
+import { PageHeader } from '@/components/shared/PageHeader';
+import { PasswordModal } from '@/components/shared/PasswordModal';
 
 export default function Customers() {
   const { 
@@ -20,11 +37,10 @@ export default function Customers() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [passwordModal, setPasswordModal] = useState<{ open: boolean; customerId: number | null }>({
-    open: false,
+  const [deleteModalState, setDeleteModalState] = useState<{ isOpen: boolean; customerId: number | null }>({
+    isOpen: false,
     customerId: null,
   });
-  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
@@ -58,7 +74,6 @@ export default function Customers() {
       }
 
       if (editingCustomer) {
-        // Update existing customer
         await updateCustomer({
           id: editingCustomer.id,
           data: {
@@ -77,7 +92,6 @@ export default function Customers() {
           },
         });
       } else {
-        // Create new customer
         await createCustomer({
           customerName: formData.customerName,
           mobile: formData.mobile || undefined,
@@ -91,7 +105,6 @@ export default function Customers() {
       }
       closeModal();
     } catch (error: any) {
-      console.error('Error saving customer:', error);
       setError(error?.response?.data?.message || 'Failed to save customer');
     }
   };
@@ -117,27 +130,15 @@ export default function Customers() {
     setIsModalOpen(true);
   };
 
-  const handleDeleteClick = (customerId: number) => {
-    setPasswordModal({ open: true, customerId });
-    setError(null);
-  };
-
-  const handleDeleteConfirm = async () => {
-    if (!passwordModal.customerId) return;
+  const handleDeleteConfirm = async (password: string) => {
+    if (!deleteModalState.customerId) return;
     
-    try {
-      setError(null);
-      await deleteCustomer({ 
-        id: passwordModal.customerId, 
-        password 
-      });
-      setPasswordModal({ open: false, customerId: null });
-      setPassword('');
-    } catch (error: any) {
-      console.error('Error deleting customer:', error);
-      const errorMsg = error?.response?.data?.message || 'Invalid password or deletion failed';
-      setError(errorMsg);
-    }
+    await deleteCustomer({ 
+      id: deleteModalState.customerId, 
+      password 
+    });
+    
+    setDeleteModalState({ isOpen: false, customerId: null });
   };
 
   const handleSettleCustomer = async (customerId: number) => {
@@ -148,7 +149,6 @@ export default function Customers() {
     try {
       await settleCustomer(customerId);
     } catch (error: any) {
-      console.error('Error settling customer:', error);
       alert(error?.response?.data?.message || 'Failed to settle customer');
     }
   };
@@ -173,376 +173,253 @@ export default function Customers() {
     });
   };
 
+  // Table columns configuration
+  const columns = [
+    {
+      key: 'customerName',
+      header: 'Name',
+      headerClassName: 'text-left',
+      className: 'font-medium text-gray-900',
+    },
+    {
+      key: 'mobile',
+      header: 'Mobile',
+      headerClassName: 'text-left',
+      className: 'text-gray-500',
+      render: (customer: Customer) => customer.mobile || customer.phone || '-',
+    },
+    {
+      key: 'address',
+      header: 'Address',
+      headerClassName: 'text-left',
+      className: 'text-gray-500',
+      render: (customer: Customer) => customer.address || '-',
+    },
+    {
+      key: 'openingBalance',
+      header: 'Opening Balance',
+      headerClassName: 'text-left',
+      render: (customer: Customer) => (
+        <span className={getBalanceColor(customer.openingBalanceType)}>
+          {formatCurrency(customer.openingBalance)} {customer.openingBalanceType}
+        </span>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      headerClassName: 'text-left',
+      render: (customer: Customer) => (
+        <Badge variant={customer.isSettled ? 'gray' : 'success'}>
+          {customer.isSettled ? 'Settled' : 'Active'}
+        </Badge>
+      ),
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      headerClassName: 'text-left',
+      render: (customer: Customer) => (
+        <div className="flex items-center gap-3">
+          {!customer.isSettled && (
+            <button
+              onClick={() => handleSettleCustomer(customer.id)}
+              className="text-green-600 hover:text-green-900 transition-colors"
+              title="Settle customer"
+              disabled={isSettling}
+            >
+              <CheckCircle size={18} />
+            </button>
+          )}
+          <button
+            onClick={() => handleEdit(customer)}
+            className="text-blue-600 hover:text-blue-900 transition-colors"
+            title="Edit customer"
+          >
+            <Edit2 size={18} />
+          </button>
+          <button
+            onClick={() => setDeleteModalState({ isOpen: true, customerId: customer.id })}
+            className="text-red-600 hover:text-red-900 transition-colors"
+            title="Delete customer"
+          >
+            <Trash2 size={18} />
+          </button>
+        </div>
+      ),
+    },
+  ];
+
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-gray-600">Loading customers...</div>
-      </div>
-    );
+    return <LoadingSpinner fullScreen text="Loading customers..." />;
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="mb-6 flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-800">Customers</h1>
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 transition-colors"
-        >
-          <Plus size={20} />
-          Add Customer
-        </button>
-      </div>
+    <div className="max-w-7xl mx-auto">
+      <PageHeader
+        title="Customers"
+        actions={
+          <Button icon={Plus} onClick={() => setIsModalOpen(true)}>
+            Add Customer
+          </Button>
+        }
+      />
 
-      <div className="mb-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-          <input
-            type="text"
-            placeholder="Search by name, mobile, or phone..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+      <Input
+        placeholder="Search by name, mobile, or phone..."
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        className="mb-4"
+        leftIcon={<span className="text-gray-400">🔍</span>}
+      />
+
+      <Table
+        columns={columns}
+        data={filteredCustomers}
+        keyExtractor={(customer) => customer.id}
+        emptyState={
+          <EmptyState
+            title="No customers found"
+            description={searchTerm ? 'Try adjusting your search' : 'Add your first customer to get started'}
           />
-        </div>
-      </div>
-
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Name
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Mobile
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Address
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Opening Balance
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Status
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {filteredCustomers.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
-                  {searchTerm ? 'No customers found matching your search' : 'No customers yet. Add your first customer!'}
-                </td>
-              </tr>
-            ) : (
-              filteredCustomers.map((customer) => (
-                <tr key={customer.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {customer.customerName}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {customer.mobile || customer.phone || '-'}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-500">
-                    {customer.address || '-'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <span className={customer.openingBalanceType === 'CR' ? 'text-green-600' : 'text-red-600'}>
-                      ₹{customer.openingBalance.toLocaleString()} {customer.openingBalanceType === 'CR' ? 'CR' : 'DR'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 text-xs rounded-full font-medium ${
-                      customer.isSettled
-                        ? 'bg-gray-100 text-gray-800'
-                        : 'bg-green-100 text-green-800'
-                    }`}>
-                      {customer.isSettled ? 'Settled' : 'Active'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="flex items-center gap-3">
-                      {!customer.isSettled && (
-                        <button
-                          onClick={() => handleSettleCustomer(customer.id)}
-                          className="text-green-600 hover:text-green-900 transition-colors"
-                          title="Settle customer"
-                          disabled={isSettling}
-                        >
-                          <CheckCircle size={18} />
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleEdit(customer)}
-                        className="text-blue-600 hover:text-blue-900 transition-colors"
-                        title="Edit customer"
-                      >
-                        <Edit2 size={18} />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteClick(customer.id)}
-                        className="text-red-600 hover:text-red-900 transition-colors"
-                        title="Delete customer"
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+        }
+      />
 
       {/* Add/Edit Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold">
-                {editingCustomer ? 'Edit Customer' : 'Add New Customer'}
-              </h2>
-              <button onClick={closeModal} className="text-gray-500 hover:text-gray-700">
-                <X size={24} />
-              </button>
-            </div>
+      <Modal
+        isOpen={isModalOpen}
+        onClose={closeModal}
+        title={editingCustomer ? 'Edit Customer' : 'Add New Customer'}
+        size="lg"
+      >
+        {error && <Alert variant="error" className="mb-4">{error}</Alert>}
 
-            {error && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg">
-                {error}
-              </div>
-            )}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Input
+            label="Customer Name"
+            required
+            value={formData.customerName}
+            onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
+            placeholder="Enter customer name"
+            className="md:col-span-2"
+          />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Customer Name *
-                </label>
+          <Input
+            label="Mobile Number"
+            value={formData.mobile}
+            onChange={(e) => setFormData({ ...formData, mobile: e.target.value })}
+            placeholder="10-digit mobile"
+          />
+
+          <Input
+            label="Phone Number"
+            value={formData.phone}
+            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+            placeholder="Landline or alternate"
+          />
+
+          <Input
+            label="Email"
+            type="email"
+            value={formData.email}
+            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+            placeholder="customer@example.com"
+            className="md:col-span-2"
+          />
+
+          <textarea
+            value={formData.address}
+            onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+            rows={2}
+            placeholder="Street address"
+            className="md:col-span-2 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+
+          <Input
+            label="City"
+            value={formData.city}
+            onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+          />
+
+          <Input
+            label="State"
+            value={formData.state}
+            onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+          />
+
+          <Input
+            label="ZIP Code"
+            value={formData.zipCode}
+            onChange={(e) => setFormData({ ...formData, zipCode: e.target.value })}
+          />
+
+          {editingCustomer && (
+            <>
+              <Input
+                label="Opening Balance"
+                type="number"
+                step="0.01"
+                value={formData.openingBalance}
+                onChange={(e) => setFormData({ ...formData, openingBalance: parseFloat(e.target.value) || 0 })}
+              />
+
+              <Select
+                label="Balance Type"
+                value={formData.openingBalanceType}
+                onChange={(e) => setFormData({ ...formData, openingBalanceType: e.target.value as 'CR' | 'DR' })}
+                options={[
+                  { value: 'CR', label: 'Credit (CR)' },
+                  { value: 'DR', label: 'Debit (DR)' },
+                ]}
+              />
+
+              <Input
+                label="Opening Balance Date"
+                type="date"
+                value={formData.openingBalanceDate}
+                onChange={(e) => setFormData({ ...formData, openingBalanceDate: e.target.value })}
+              />
+
+              <div className="flex items-center">
                 <input
-                  type="text"
-                  required
-                  value={formData.customerName}
-                  onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Enter customer name"
+                  type="checkbox"
+                  id="isSettled"
+                  checked={formData.isSettled}
+                  onChange={(e) => setFormData({ ...formData, isSettled: e.target.checked })}
+                  className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                 />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Mobile Number
+                <label htmlFor="isSettled" className="text-sm font-medium text-gray-700">
+                  Mark as Settled
                 </label>
-                <input
-                  type="text"
-                  value={formData.mobile}
-                  onChange={(e) => setFormData({ ...formData, mobile: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="10-digit mobile"
-                />
               </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Phone Number
-                </label>
-                <input
-                  type="text"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Landline or alternate"
-                />
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="customer@example.com"
-                />
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Address
-                </label>
-                <textarea
-                  value={formData.address}
-                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  rows={2}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Street address"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  City
-                </label>
-                <input
-                  type="text"
-                  value={formData.city}
-                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  State
-                </label>
-                <input
-                  type="text"
-                  value={formData.state}
-                  onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  ZIP Code
-                </label>
-                <input
-                  type="text"
-                  value={formData.zipCode}
-                  onChange={(e) => setFormData({ ...formData, zipCode: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-
-              {editingCustomer && (
-                <>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Opening Balance
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={formData.openingBalance}
-                      onChange={(e) => setFormData({ ...formData, openingBalance: parseFloat(e.target.value) || 0 })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Balance Type
-                    </label>
-                    <select
-                      value={formData.openingBalanceType}
-                      onChange={(e) => setFormData({ ...formData, openingBalanceType: e.target.value as 'CR' | 'DR' })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="CR">Credit (CR)</option>
-                      <option value="DR">Debit (DR)</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Opening Balance Date
-                    </label>
-                    <input
-                      type="date"
-                      value={formData.openingBalanceDate}
-                      onChange={(e) => setFormData({ ...formData, openingBalanceDate: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-
-                  <div className="flex items-center">
-                    <input
-                      type="checkbox"
-                      id="isSettled"
-                      checked={formData.isSettled}
-                      onChange={(e) => setFormData({ ...formData, isSettled: e.target.checked })}
-                      className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                    />
-                    <label htmlFor="isSettled" className="text-sm font-medium text-gray-700">
-                      Mark as Settled
-                    </label>
-                  </div>
-                </>
-              )}
-            </div>
-
-            <div className="mt-6 flex gap-3">
-              <button
-                onClick={closeModal}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={isCreating || isUpdating}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {isCreating || isUpdating ? 'Saving...' : 'Save Customer'}
-              </button>
-            </div>
-          </div>
+            </>
+          )}
         </div>
-      )}
+
+        <div className="mt-6 flex gap-3">
+          <Button variant="outline" onClick={closeModal} fullWidth>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSave}
+            isLoading={isCreating || isUpdating}
+            fullWidth
+          >
+            Save Customer
+          </Button>
+        </div>
+      </Modal>
 
       {/* Delete Confirmation Modal */}
-      {passwordModal.open && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-6 w-full max-w-sm">
-            <h2 className="text-xl font-bold mb-4 text-gray-900">Confirm Deletion</h2>
-            
-            {error && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
-                {error}
-              </div>
-            )}
-
-            <p className="text-gray-600 mb-4">
-              This action cannot be undone. Enter your password to confirm:
-            </p>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter your password"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent mb-4"
-              onKeyPress={(e) => e.key === 'Enter' && handleDeleteConfirm()}
-              autoFocus
-            />
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  setPasswordModal({ open: false, customerId: null });
-                  setPassword('');
-                  setError(null);
-                }}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDeleteConfirm}
-                disabled={isDeleting || !password}
-                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {isDeleting ? 'Deleting...' : 'Delete'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <PasswordModal
+        isOpen={deleteModalState.isOpen}
+        onClose={() => setDeleteModalState({ isOpen: false, customerId: null })}
+        onConfirm={handleDeleteConfirm}
+        title="Confirm Deletion"
+        description="This action cannot be undone. Enter your password to confirm:"
+        confirmButtonText="Delete"
+        isLoading={isDeleting}
+      />
     </div>
   );
 }

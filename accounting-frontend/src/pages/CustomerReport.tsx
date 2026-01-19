@@ -1,7 +1,20 @@
+// src/pages/CustomerReport.tsx - REFACTORED
 import { useState, useEffect } from 'react';
-import { FileText, Download, Printer, Calendar } from 'lucide-react';
+import { Download, Printer, Calendar } from 'lucide-react';
 import { useCustomerLedger, useAvailableYears } from '../features/reports/hooks/useReports';
 import { useCustomers } from '../features/customers/hooks/useCustomers';
+import { formatCurrency, formatDate, getBalanceColor } from '@/lib/utils';
+
+import {
+  Button,
+  Select,
+  Input,
+  Table,
+  Card,
+  EmptyState,
+  LoadingSpinner,
+} from '@/components/ui';
+import { PageHeader } from '@/components/shared/PageHeader';
 
 export default function CustomerReport() {
   const currentYear = new Date().getFullYear();
@@ -14,37 +27,16 @@ export default function CustomerReport() {
   const { customers } = useCustomers();
   const { data: yearsData } = useAvailableYears();
 
-  const params = filterType === 'year'
-    ? { year: selectedYear }
-    : { startDate, endDate };
+  const params = filterType === 'year' ? { year: selectedYear } : { startDate, endDate };
+  const { data: ledger, isLoading } = useCustomerLedger(selectedCustomerId || 0, params);
 
-  const { data: ledger, isLoading } = useCustomerLedger(
-    selectedCustomerId || 0,
-    params
-  );
-
-  // Set first customer as default
   useEffect(() => {
     if (customers && customers.length > 0 && !selectedCustomerId) {
       setSelectedCustomerId(customers[0].id);
     }
   }, [customers, selectedCustomerId]);
 
-  const formatCurrency = (amount: number) => {
-    return `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric'
-    });
-  };
-
-  const handlePrint = () => {
-    window.print();
-  };
+  const handlePrint = () => window.print();
 
   const handleExport = () => {
     if (!ledger) return;
@@ -77,263 +69,230 @@ export default function CustomerReport() {
     window.URL.revokeObjectURL(url);
   };
 
+  // Table columns
+  const columns = [
+    {
+      key: 'date',
+      header: 'Date',
+      headerClassName: 'text-left',
+      className: 'text-gray-900 dark:text-gray-100',
+      render: (e: any) => formatDate(e.date),
+    },
+    {
+      key: 'description',
+      header: 'Description',
+      headerClassName: 'text-left',
+      className: 'text-gray-900 dark:text-gray-100',
+      render: (e: any) => e.description || '-',
+    },
+    {
+      key: 'creditAmount',
+      header: 'Credit',
+      headerClassName: 'text-right',
+      className: 'text-right text-green-600',
+      render: (e: any) => e.creditAmount > 0 ? formatCurrency(e.creditAmount) : '-',
+    },
+    {
+      key: 'debitAmount',
+      header: 'Debit',
+      headerClassName: 'text-right',
+      className: 'text-right text-red-600',
+      render: (e: any) => e.debitAmount > 0 ? formatCurrency(e.debitAmount) : '-',
+    },
+    {
+      key: 'balance',
+      header: 'Balance',
+      headerClassName: 'text-right',
+      className: 'text-right',
+      render: (e: any) => (
+        <span className={`font-medium ${getBalanceColor(e.balanceType)}`}>
+          {formatCurrency(e.balance)} {e.balanceType}
+        </span>
+      ),
+    },
+    {
+      key: 'remark',
+      header: 'Remark',
+      headerClassName: 'text-left',
+      className: 'text-gray-500 dark:text-gray-400',
+      render: (e: any) => e.remark || '-',
+    },
+  ];
+
+  if (isLoading) {
+    return <LoadingSpinner fullScreen text="Loading ledger..." />;
+  }
+
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <FileText size={32} className="text-blue-600" />
-            <div>
-              <h1 className="text-3xl font-bold text-gray-800">Customer Ledger</h1>
-              <p className="text-gray-600">Detailed transaction history</p>
-            </div>
-          </div>
-
-          <div className="flex gap-3">
-            <button
-              onClick={handlePrint}
-              disabled={!ledger}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-50"
-            >
-              <Printer size={18} />
+    <div className="max-w-7xl mx-auto">
+      <PageHeader
+        title="Customer Ledger"
+        description="Detailed transaction history"
+        actions={
+          <>
+            <Button variant="secondary" icon={Printer} onClick={handlePrint} disabled={!ledger}>
               Print
-            </button>
-            <button
-              onClick={handleExport}
-              disabled={!ledger}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
-            >
-              <Download size={18} />
+            </Button>
+            <Button variant="success" icon={Download} onClick={handleExport} disabled={!ledger}>
               Export CSV
-            </button>
-          </div>
+            </Button>
+          </>
+        }
+      />
+
+      {/* Filters */}
+      <Card className="mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Select
+            label="Select Customer"
+            value={selectedCustomerId || ''}
+            onChange={(e) => setSelectedCustomerId(Number(e.target.value))}
+            options={[
+              { value: '', label: 'Select a customer' },
+              ...(customers?.map(c => ({
+                value: c.id,
+                label: `${c.customerName}${c.mobile ? ` (${c.mobile})` : ''}`
+              })) || [])
+            ]}
+          />
+
+          <Select
+            label="Filter Type"
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value as 'year' | 'dateRange')}
+            options={[
+              { value: 'year', label: 'By Year' },
+              { value: 'dateRange', label: 'Date Range' }
+            ]}
+          />
+
+          {filterType === 'year' ? (
+            <Select
+              label="Select Year"
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(Number(e.target.value))}
+              options={yearsData?.years.map(year => ({ value: year, label: year.toString() })) || []}
+            />
+          ) : (
+            <>
+              <Input
+                type="date"
+                label="Start Date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+              />
+              <Input
+                type="date"
+                label="End Date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+              />
+            </>
+          )}
         </div>
-
-        {/* Filters */}
-        <div className="bg-white rounded-lg shadow p-4 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Select Customer
-              </label>
-              <select
-                value={selectedCustomerId || ''}
-                onChange={(e) => setSelectedCustomerId(Number(e.target.value))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="">Select a customer</option>
-                {customers?.map(customer => (
-                  <option key={customer.id} value={customer.id}>
-                    {customer.customerName} {customer.mobile ? `(${customer.mobile})` : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Filter Type
-              </label>
-              <select
-                value={filterType}
-                onChange={(e) => setFilterType(e.target.value as 'year' | 'dateRange')}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="year">By Year</option>
-                <option value="dateRange">Date Range</option>
-              </select>
-            </div>
-
-            {filterType === 'year' ? (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Select Year
-                </label>
-                <select
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(Number(e.target.value))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  {yearsData?.years.map(year => (
-                    <option key={year} value={year}>{year}</option>
-                  ))}
-                </select>
-              </div>
-            ) : (
-              <>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Start Date
-                  </label>
-                  <input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    End Date
-                  </label>
-                  <input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
+      </Card>
 
       {/* Customer Info & Summary */}
       {ledger && (
-        <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        <Card className="mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <h2 className="text-xl font-bold text-gray-800 mb-3">{ledger.customerName}</h2>
-              {ledger.mobile && (
-                <p className="text-gray-600 flex items-center gap-2">
-                  <span className="font-medium">Mobile:</span> {ledger.mobile}
-                </p>
-              )}
-              {ledger.address && (
-                <p className="text-gray-600 flex items-center gap-2">
-                  <span className="font-medium">Address:</span> {ledger.address}
-                </p>
-              )}
-              <p className="text-gray-600 flex items-center gap-2 mt-2">
+              <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100 mb-3">{ledger.customerName}</h2>
+              {ledger.mobile && <p className="text-gray-600 dark:text-gray-400">Mobile: {ledger.mobile}</p>}
+              {ledger.address && <p className="text-gray-600 dark:text-gray-400">Address: {ledger.address}</p>}
+              <p className="text-gray-600 dark:text-gray-400 flex items-center gap-2 mt-2">
                 <Calendar size={16} />
-                <span className="font-medium">Period:</span>
-                {filterType === 'year' ? `Year ${selectedYear}` : `${formatDate(startDate)} to ${formatDate(endDate)}`}
+                Period: {filterType === 'year' ? `Year ${selectedYear}` : `${formatDate(startDate)} to ${formatDate(endDate)}`}
               </p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <p className="text-xs text-blue-600 font-medium">Opening Balance</p>
-                <p className={`text-lg font-bold mt-1 ${
-                  ledger.openingBalanceType === 'CR' ? 'text-green-600' : 'text-red-600'
-                }`}>
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">Opening Balance</p>
+                <p className={`text-lg font-bold mt-1 ${getBalanceColor(ledger.openingBalanceType)}`}>
                   {formatCurrency(ledger.openingBalance)} {ledger.openingBalanceType}
                 </p>
               </div>
 
-              <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
-                <p className="text-xs text-purple-600 font-medium">Closing Balance</p>
-                <p className={`text-lg font-bold mt-1 ${
-                  ledger.closingBalanceType === 'CR' ? 'text-green-600' : 'text-red-600'
-                }`}>
+              <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-3">
+                <p className="text-xs text-purple-600 dark:text-purple-400 font-medium">Closing Balance</p>
+                <p className={`text-lg font-bold mt-1 ${getBalanceColor(ledger.closingBalanceType)}`}>
                   {formatCurrency(ledger.closingBalance)} {ledger.closingBalanceType}
                 </p>
               </div>
 
-              <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                <p className="text-xs text-green-600 font-medium">Total Credit</p>
-                <p className="text-lg font-bold text-green-900 mt-1">
+              <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3">
+                <p className="text-xs text-green-600 dark:text-green-400 font-medium">Total Credit</p>
+                <p className="text-lg font-bold text-green-900 dark:text-green-100 mt-1">
                   {formatCurrency(ledger.totalCredit)}
                 </p>
               </div>
 
-              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                <p className="text-xs text-red-600 font-medium">Total Debit</p>
-                <p className="text-lg font-bold text-red-900 mt-1">
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                <p className="text-xs text-red-600 dark:text-red-400 font-medium">Total Debit</p>
+                <p className="text-lg font-bold text-red-900 dark:text-red-100 mt-1">
                   {formatCurrency(ledger.totalDebit)}
                 </p>
               </div>
             </div>
           </div>
-        </div>
+        </Card>
       )}
 
-      {/* Ledger Entries Table */}
-      {isLoading ? (
-        <div className="bg-white rounded-lg shadow p-12 text-center text-gray-600">
-          Loading ledger...
-        </div>
-      ) : !selectedCustomerId ? (
-        <div className="bg-white rounded-lg shadow p-12 text-center text-gray-500">
-          <FileText size={48} className="mx-auto mb-4 text-gray-400" />
-          <p className="text-lg font-medium">Select a customer to view ledger</p>
-        </div>
+      {/* Ledger Table */}
+      {!selectedCustomerId ? (
+        <EmptyState
+          icon={Calendar}
+          title="Select a customer to view ledger"
+          description="Choose a customer from the dropdown above"
+        />
       ) : ledger && ledger.entries.length === 0 ? (
-        <div className="bg-white rounded-lg shadow p-12 text-center text-gray-500">
-          <Calendar size={48} className="mx-auto mb-4 text-gray-400" />
-          <p className="text-lg font-medium">No transactions found</p>
-          <p className="text-sm mt-1">This customer has no transactions in the selected period</p>
-        </div>
+        <EmptyState
+          icon={Calendar}
+          title="No transactions found"
+          description="This customer has no transactions in the selected period"
+        />
       ) : ledger ? (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className="bg-gray-50 dark:bg-gray-900">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Date
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Description
-                  </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Credit
-                  </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Debit
-                  </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Balance
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Remark
-                  </th>
+                  {columns.map((col) => (
+                    <th key={col.key} className={`px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider ${col.headerClassName}`}>
+                      {col.header}
+                    </th>
+                  ))}
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                <tr className="bg-blue-50">
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900">-</td>
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900">Opening Balance</td>
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                {/* Opening Balance Row */}
+                <tr className="bg-blue-50 dark:bg-blue-900/20">
+                  <td className="px-4 py-3 text-sm font-medium">-</td>
+                  <td className="px-4 py-3 text-sm font-medium">Opening Balance</td>
                   <td className="px-4 py-3"></td>
                   <td className="px-4 py-3"></td>
                   <td className="px-4 py-3 text-sm text-right">
-                    <span className={`font-medium ${
-                      ledger.openingBalanceType === 'CR' ? 'text-green-600' : 'text-red-600'
-                    }`}>
+                    <span className={`font-medium ${getBalanceColor(ledger.openingBalanceType)}`}>
                       {formatCurrency(ledger.openingBalance)} {ledger.openingBalanceType}
                     </span>
                   </td>
                   <td className="px-4 py-3"></td>
                 </tr>
+
+                {/* Transactions */}
                 {ledger.entries.map((entry) => (
-                  <tr key={entry.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                      {formatDate(entry.date)}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-900">
-                      {entry.description || '-'}
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-right text-green-600">
-                      {entry.creditAmount > 0 ? formatCurrency(entry.creditAmount) : '-'}
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-right text-red-600">
-                      {entry.debitAmount > 0 ? formatCurrency(entry.debitAmount) : '-'}
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-right">
-                      <span className={`font-medium ${
-                        entry.balanceType === 'CR' ? 'text-green-600' : 'text-red-600'
-                      }`}>
-                        {formatCurrency(entry.balance)} {entry.balanceType}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-500">
-                      {entry.remark || '-'}
-                    </td>
+                  <tr key={entry.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                    {columns.map((col) => (
+                      <td key={col.key} className={`px-4 py-3 text-sm ${col.className}`}>
+                        {col.render ? col.render(entry) : (entry as any)[col.key]}
+                      </td>
+                    ))}
                   </tr>
                 ))}
-                <tr className="bg-gray-100 font-bold">
+
+                {/* Total Row */}
+                <tr className="bg-gray-100 dark:bg-gray-900 font-bold">
                   <td className="px-4 py-3 text-sm">TOTAL</td>
                   <td className="px-4 py-3"></td>
                   <td className="px-4 py-3 text-sm text-right text-green-600">
@@ -343,9 +302,7 @@ export default function CustomerReport() {
                     {formatCurrency(ledger.totalDebit)}
                   </td>
                   <td className="px-4 py-3 text-sm text-right">
-                    <span className={
-                      ledger.closingBalanceType === 'CR' ? 'text-green-600' : 'text-red-600'
-                    }>
+                    <span className={getBalanceColor(ledger.closingBalanceType)}>
                       {formatCurrency(ledger.closingBalance)} {ledger.closingBalanceType}
                     </span>
                   </td>

@@ -1,6 +1,19 @@
+// src/pages/DatewiseReport.tsx - REFACTORED
 import { useState } from 'react';
-import { FileText, Download, Printer, Calendar, Search } from 'lucide-react';
+import { Download, Printer, Calendar, Search } from 'lucide-react';
 import { useDateWiseReport } from '../features/reports/hooks/useReports';
+import { formatCurrency, formatDate, getBalanceColor } from '@/lib/utils';
+
+import {
+  Button,
+  Input,
+  Table,
+  Card,
+  Badge,
+  EmptyState,
+  LoadingSpinner,
+} from '@/components/ui';
+import { PageHeader } from '@/components/shared/PageHeader';
 
 export default function DatewiseReport() {
   const today = new Date().toISOString().split('T')[0];
@@ -13,36 +26,12 @@ export default function DatewiseReport() {
 
   const { data: report, isLoading } = useDateWiseReport(startDate, endDate);
 
-  const formatCurrency = (amount: number) => {
-    return `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric'
-    });
-  };
-
-  const handlePrint = () => {
-    window.print();
-  };
+  const handlePrint = () => window.print();
 
   const handleExport = () => {
     if (!report) return;
 
-    const headers = [
-      'Date',
-      'Customer',
-      'Description',
-      'Type',
-      'Credit',
-      'Debit',
-      'Balance',
-      'Balance Type'
-    ];
-
+    const headers = ['Date', 'Customer', 'Description', 'Type', 'Credit', 'Debit', 'Balance', 'Balance Type'];
     const rows = report.entries.map(e => [
       formatDate(e.date),
       e.customerName,
@@ -55,7 +44,7 @@ export default function DatewiseReport() {
     ]);
 
     const csvContent = [
-      [`Date-Wise Report`],
+      ['Date-Wise Report'],
       [`Period: ${formatDate(startDate)} to ${formatDate(endDate)}`],
       [`Total Transactions: ${report.totalTransactions}`],
       [],
@@ -77,232 +66,215 @@ export default function DatewiseReport() {
     e.description?.toLowerCase().includes(searchTerm.toLowerCase())
   ) || [];
 
+  // Table columns
+  const columns = [
+    {
+      key: 'date',
+      header: 'Date',
+      headerClassName: 'text-left',
+      className: 'text-gray-900 dark:text-gray-100',
+      render: (e: any) => formatDate(e.date),
+    },
+    {
+      key: 'customerName',
+      header: 'Customer',
+      headerClassName: 'text-left',
+      className: 'font-medium text-gray-900 dark:text-gray-100',
+    },
+    {
+      key: 'description',
+      header: 'Description',
+      headerClassName: 'text-left',
+      className: 'text-gray-600 dark:text-gray-400',
+      render: (e: any) => e.description || '-',
+    },
+    {
+      key: 'transactionType',
+      header: 'Type',
+      headerClassName: 'text-center',
+      className: 'text-center',
+      render: (e: any) => (
+        <Badge variant={e.transactionType === 'Credit' ? 'success' : 'error'}>
+          {e.transactionType}
+        </Badge>
+      ),
+    },
+    {
+      key: 'creditAmount',
+      header: 'Credit',
+      headerClassName: 'text-right',
+      className: 'text-right text-green-600',
+      render: (e: any) => e.creditAmount > 0 ? formatCurrency(e.creditAmount) : '-',
+    },
+    {
+      key: 'debitAmount',
+      header: 'Debit',
+      headerClassName: 'text-right',
+      className: 'text-right text-red-600',
+      render: (e: any) => e.debitAmount > 0 ? formatCurrency(e.debitAmount) : '-',
+    },
+    {
+      key: 'balance',
+      header: 'Balance',
+      headerClassName: 'text-right',
+      className: 'text-right',
+      render: (e: any) => (
+        <span className={`font-medium ${getBalanceColor(e.balanceType)}`}>
+          {formatCurrency(e.balance)} {e.balanceType}
+        </span>
+      ),
+    },
+  ];
+
+  if (isLoading) {
+    return <LoadingSpinner fullScreen text="Loading report..." />;
+  }
+
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <FileText size={32} className="text-blue-600" />
-            <div>
-              <h1 className="text-3xl font-bold text-gray-800">Date-Wise Report</h1>
-              <p className="text-gray-600">All transactions within date range</p>
-            </div>
-          </div>
-
-          <div className="flex gap-3">
-            <button
-              onClick={handlePrint}
-              disabled={!report}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-50"
-            >
-              <Printer size={18} />
+    <div className="max-w-7xl mx-auto">
+      <PageHeader
+        title="Date-Wise Report"
+        description="All transactions within date range"
+        actions={
+          <>
+            <Button variant="secondary" icon={Printer} onClick={handlePrint} disabled={!report}>
               Print
-            </button>
-            <button
-              onClick={handleExport}
-              disabled={!report}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
-            >
-              <Download size={18} />
+            </Button>
+            <Button variant="success" icon={Download} onClick={handleExport} disabled={!report}>
               Export CSV
-            </button>
-          </div>
+            </Button>
+          </>
+        }
+      />
+
+      {/* Filters */}
+      <Card className="mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Input
+            type="date"
+            label="Start Date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+          />
+
+          <Input
+            type="date"
+            label="End Date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+          />
+
+          <Input
+            label="Search"
+            placeholder="Customer or description..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            leftIcon={<Search size={20} />}
+          />
         </div>
-
-        {/* Filters */}
-        <div className="bg-white rounded-lg shadow p-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Start Date
-              </label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                End Date
-              </label>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Search
-              </label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-                <input
-                  type="text"
-                  placeholder="Customer or description..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      </Card>
 
       {/* Summary Cards */}
       {report && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <p className="text-sm text-blue-600 font-medium">Total Transactions</p>
-            <p className="text-2xl font-bold text-blue-900 mt-1">{report.totalTransactions}</p>
-          </div>
+          <Card padding="sm" className="bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-200 dark:border-blue-800">
+            <p className="text-sm text-blue-600 dark:text-blue-400 font-medium">Total Transactions</p>
+            <p className="text-2xl font-bold text-blue-900 dark:text-blue-100 mt-1">{report.totalTransactions}</p>
+          </Card>
 
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-            <p className="text-sm text-green-600 font-medium">Total Credit</p>
-            <p className="text-2xl font-bold text-green-900 mt-1">
+          <Card padding="sm" className="bg-green-50 dark:bg-green-900/20 border-2 border-green-200 dark:border-green-800">
+            <p className="text-sm text-green-600 dark:text-green-400 font-medium">Total Credit</p>
+            <p className="text-2xl font-bold text-green-900 dark:text-green-100 mt-1">
               {formatCurrency(report.totalCredit)}
             </p>
-          </div>
+          </Card>
 
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-            <p className="text-sm text-red-600 font-medium">Total Debit</p>
-            <p className="text-2xl font-bold text-red-900 mt-1">
+          <Card padding="sm" className="bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800">
+            <p className="text-sm text-red-600 dark:text-red-400 font-medium">Total Debit</p>
+            <p className="text-2xl font-bold text-red-900 dark:text-red-100 mt-1">
               {formatCurrency(report.totalDebit)}
             </p>
-          </div>
+          </Card>
 
-          <div className={`border rounded-lg p-4 ${
+          <Card padding="sm" className={`border-2 ${
             report.netAmount >= 0 
-              ? 'bg-purple-50 border-purple-200' 
-              : 'bg-orange-50 border-orange-200'
+              ? 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800' 
+              : 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800'
           }`}>
             <p className={`text-sm font-medium ${
-              report.netAmount >= 0 ? 'text-purple-600' : 'text-orange-600'
+              report.netAmount >= 0 ? 'text-purple-600 dark:text-purple-400' : 'text-orange-600 dark:text-orange-400'
             }`}>
               Net Amount
             </p>
             <p className={`text-2xl font-bold mt-1 ${
-              report.netAmount >= 0 ? 'text-purple-900' : 'text-orange-900'
+              report.netAmount >= 0 ? 'text-purple-900 dark:text-purple-100' : 'text-orange-900 dark:text-orange-100'
             }`}>
               {formatCurrency(Math.abs(report.netAmount))}
             </p>
             <p className={`text-xs mt-1 ${
-              report.netAmount >= 0 ? 'text-purple-600' : 'text-orange-600'
+              report.netAmount >= 0 ? 'text-purple-600 dark:text-purple-400' : 'text-orange-600 dark:text-orange-400'
             }`}>
               {report.netAmount >= 0 ? 'Surplus' : 'Deficit'}
             </p>
-          </div>
+          </Card>
         </div>
       )}
 
       {/* Report Table */}
-      {isLoading ? (
-        <div className="bg-white rounded-lg shadow p-12 text-center text-gray-600">
-          Loading report...
-        </div>
-      ) : !report || report.entries.length === 0 ? (
-        <div className="bg-white rounded-lg shadow p-12 text-center text-gray-500">
-          <Calendar size={48} className="mx-auto mb-4 text-gray-400" />
-          <p className="text-lg font-medium">No transactions found</p>
-          <p className="text-sm mt-1">There are no transactions in the selected date range</p>
-        </div>
+      {!report || report.entries.length === 0 ? (
+        <EmptyState
+          icon={Calendar}
+          title="No transactions found"
+          description="There are no transactions in the selected date range"
+        />
       ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className="bg-gray-50 dark:bg-gray-900">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Date
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Customer
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Description
-                  </th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Type
-                  </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Credit
-                  </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Debit
-                  </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Balance
-                  </th>
+                  {columns.map((col) => (
+                    <th key={col.key} className={`px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider ${col.headerClassName}`}>
+                      {col.header}
+                    </th>
+                  ))}
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                 {filteredEntries.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan={7} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
                       No transactions found matching your search
                     </td>
                   </tr>
                 ) : (
-                  filteredEntries.map((entry) => (
-                    <tr key={entry.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                        {formatDate(entry.date)}
+                  <>
+                    {filteredEntries.map((entry) => (
+                      <tr key={entry.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                        {columns.map((col) => (
+                          <td key={col.key} className={`px-4 py-3 text-sm ${col.className}`}>
+                            {col.render ? col.render(entry) : (entry as any)[col.key]}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                    
+                    {/* Total Row */}
+                    <tr className="bg-gray-100 dark:bg-gray-900 font-bold">
+                      <td colSpan={4} className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
+                        TOTAL ({filteredEntries.length} transactions)
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {entry.customerName}
+                      <td className="px-4 py-3 text-sm text-right text-green-600">
+                        {formatCurrency(filteredEntries.reduce((sum, e) => sum + e.creditAmount, 0))}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
-                        {entry.description || '-'}
+                      <td className="px-4 py-3 text-sm text-right text-red-600">
+                        {formatCurrency(filteredEntries.reduce((sum, e) => sum + e.debitAmount, 0))}
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-center">
-                        <span className={`px-2 py-1 text-xs rounded-full ${
-                          entry.transactionType === 'Credit'
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-red-100 text-red-800'
-                        }`}>
-                          {entry.transactionType}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-right text-green-600">
-                        {entry.creditAmount > 0 ? formatCurrency(entry.creditAmount) : '-'}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-right text-red-600">
-                        {entry.debitAmount > 0 ? formatCurrency(entry.debitAmount) : '-'}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-right">
-                        <span className={`font-medium ${
-                          entry.balanceType === 'CR' ? 'text-green-600' : 'text-red-600'
-                        }`}>
-                          {formatCurrency(entry.balance)} {entry.balanceType}
-                        </span>
-                      </td>
+                      <td className="px-4 py-3"></td>
                     </tr>
-                  ))
+                  </>
                 )}
               </tbody>
-              {filteredEntries.length > 0 && (
-                <tfoot className="bg-gray-100 font-bold">
-                  <tr>
-                    <td colSpan={4} className="px-4 py-3 text-sm text-gray-900">
-                      TOTAL ({filteredEntries.length} transactions)
-                    </td>
-                    <td className="px-4 py-3 text-sm text-right text-green-600">
-                      {formatCurrency(filteredEntries.reduce((sum, e) => sum + e.creditAmount, 0))}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-right text-red-600">
-                      {formatCurrency(filteredEntries.reduce((sum, e) => sum + e.debitAmount, 0))}
-                    </td>
-                    <td className="px-4 py-3"></td>
-                  </tr>
-                </tfoot>
-              )}
             </table>
           </div>
         </div>
