@@ -1,11 +1,10 @@
-// src/pages/ExpenseList.tsx - REFACTORED VERSION
+// src/pages/ExpenseList.tsx - WITH EDIT FUNCTIONALITY
 import { useState } from 'react';
-import { Trash2, Calendar } from 'lucide-react';
-import { useTransactions, useDeleteTransaction } from '../features/transactions/hooks/useTransactions';
+import { Trash2, Calendar, Edit2 } from 'lucide-react';
+import { useTransactions, useDeleteTransaction, useUpdateTransaction } from '../features/transactions/hooks/useTransactions';
 import { useCustomers } from '../features/customers/hooks/useCustomers';
 import { formatCurrency, formatDate, getBalanceColor } from '@/lib/utils';
 
-// Shared Components
 import {
   Button,
   Input,
@@ -18,6 +17,7 @@ import {
 } from '@/components/ui';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { PasswordModal } from '@/components/shared/PasswordModal';
+import { TransactionEditModal } from '@/components/shared/TransactionEditModal';
 
 export default function ExpenseList() {
   const currentYear = new Date().getFullYear();
@@ -35,6 +35,11 @@ export default function ExpenseList() {
     ids: number[];
   }>({ isOpen: false, ids: [] });
 
+  const [editModalState, setEditModalState] = useState<{
+    isOpen: boolean;
+    transaction: any | null;
+  }>({ isOpen: false, transaction: null });
+
   const { customers } = useCustomers();
   const { data: transactions, isLoading } = useTransactions({
     customerId: filters.customerId ? Number(filters.customerId) : undefined,
@@ -42,6 +47,7 @@ export default function ExpenseList() {
     type: filters.type || undefined
   });
   const { mutateAsync: deleteTransaction, isPending: isDeleting } = useDeleteTransaction();
+  const { mutateAsync: updateTransaction, isPending: isUpdating } = useUpdateTransaction();
 
   const filteredTransactions = transactions?.filter(t => {
     if (filters.searchTerm) {
@@ -84,6 +90,25 @@ export default function ExpenseList() {
     setSelectedIds([]);
   };
 
+  const handleEditClick = (transaction: any) => {
+    setEditModalState({
+      isOpen: true,
+      transaction: {
+        id: transaction.id,
+        transactionDate: transaction.transactionDate,
+        description: transaction.description,
+        amount: transaction.transactionType === 'Credit' ? transaction.creditAmount : transaction.debitAmount,
+        remark: transaction.remark,
+        transactionType: transaction.transactionType
+      }
+    });
+  };
+
+  const handleEditSave = async (id: number, data: any) => {
+    await updateTransaction({ id, data });
+    setEditModalState({ isOpen: false, transaction: null });
+  };
+
   const handleClearFilters = () => {
     setFilters({
       customerId: '',
@@ -93,7 +118,7 @@ export default function ExpenseList() {
     });
   };
 
-  // Table columns configuration
+  // Table columns
   const columns = [
     {
       key: 'select',
@@ -119,20 +144,20 @@ export default function ExpenseList() {
       key: 'transactionDate',
       header: 'Date',
       headerClassName: 'text-left',
-      className: 'text-gray-900',
+      className: 'text-gray-900 dark:text-gray-100',
       render: (t: any) => formatDate(t.transactionDate),
     },
     {
       key: 'customerName',
       header: 'Customer',
       headerClassName: 'text-left',
-      className: 'font-medium text-gray-900',
+      className: 'font-medium text-gray-900 dark:text-gray-100',
     },
     {
       key: 'description',
       header: 'Description',
       headerClassName: 'text-left',
-      className: 'text-gray-600',
+      className: 'text-gray-600 dark:text-gray-400',
       render: (t: any) => t.description || '-',
     },
     {
@@ -176,13 +201,22 @@ export default function ExpenseList() {
       headerClassName: 'text-center',
       className: 'text-center',
       render: (t: any) => (
-        <button
-          onClick={() => handleDeleteClick(t.id)}
-          className="text-red-600 hover:text-red-900 transition-colors"
-          title="Delete transaction"
-        >
-          <Trash2 size={18} />
-        </button>
+        <div className="flex items-center justify-center gap-2">
+          <button
+            onClick={() => handleEditClick(t)}
+            className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
+            title="Edit transaction"
+          >
+            <Edit2 size={18} />
+          </button>
+          <button
+            onClick={() => handleDeleteClick(t.id)}
+            className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 transition-colors"
+            title="Delete transaction"
+          >
+            <Trash2 size={18} />
+          </button>
+        </div>
       ),
     },
   ];
@@ -201,11 +235,11 @@ export default function ExpenseList() {
       {/* Filters */}
       <Card className="mb-6">
         <div className="flex items-center gap-2 mb-4">
-          <span className="text-gray-600">🔍</span>
-          <h2 className="font-medium text-gray-800">Filters</h2>
+          <span className="text-gray-600 dark:text-gray-400">🔍</span>
+          <h2 className="font-medium text-gray-800 dark:text-gray-100">Filters</h2>
           <button
             onClick={handleClearFilters}
-            className="ml-auto text-sm text-blue-600 hover:text-blue-800"
+            className="ml-auto text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400"
           >
             Clear All
           </button>
@@ -257,16 +291,12 @@ export default function ExpenseList() {
 
       {/* Bulk Actions */}
       {selectedIds.length > 0 && (
-        <Card className="mb-6 bg-blue-50 border-2 border-blue-200" padding="md">
+        <Card className="mb-6 bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-200 dark:border-blue-800" padding="md">
           <div className="flex items-center justify-between">
-            <p className="text-blue-900 font-medium">
+            <p className="text-blue-900 dark:text-blue-100 font-medium">
               {selectedIds.length} transaction{selectedIds.length > 1 ? 's' : ''} selected
             </p>
-            <Button
-              variant="danger"
-              icon={Trash2}
-              onClick={() => handleDeleteClick()}
-            >
+            <Button variant="danger" icon={Trash2} onClick={() => handleDeleteClick()}>
               Delete Selected
             </Button>
           </div>
@@ -300,6 +330,15 @@ export default function ExpenseList() {
         description={`You are about to delete ${deleteModalState.ids.length} transaction${deleteModalState.ids.length > 1 ? 's' : ''}. This will recalculate all running balances. Enter your password to confirm:`}
         confirmButtonText="Delete"
         isLoading={isDeleting}
+      />
+
+      {/* Edit Transaction Modal */}
+      <TransactionEditModal
+        isOpen={editModalState.isOpen}
+        onClose={() => setEditModalState({ isOpen: false, transaction: null })}
+        transaction={editModalState.transaction}
+        onSave={handleEditSave}
+        isLoading={isUpdating}
       />
     </div>
   );

@@ -1,4 +1,4 @@
-// src/components/shared/PasswordModal.tsx
+// src/components/shared/PasswordModal.tsx - FIXED VERSION
 import React, { useState, useEffect } from 'react';
 import { Modal } from '../ui/Modal';
 import { PasswordInput } from '../ui/PasswordInput';
@@ -51,8 +51,30 @@ export const PasswordModal: React.FC<PasswordModalProps> = ({
     try {
       await onConfirm(password);
       // Success - modal will be closed by parent
+      setPassword('');
+      setError('');
     } catch (err: any) {
-      setError(err?.response?.data?.message || 'Invalid password or action failed');
+      console.error('Password verification error:', err);
+      
+      // Handle different error types
+      let errorMessage = 'Invalid password or action failed';
+      
+      if (err?.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      } else if (err?.response?.data?.title) {
+        errorMessage = err.response.data.title;
+      } else if (err?.message) {
+        errorMessage = err.message;
+      }
+      
+      // Check for authentication errors
+      if (err?.response?.status === 401) {
+        errorMessage = 'Invalid password. Please check and try again.';
+      } else if (err?.response?.status === 403) {
+        errorMessage = 'You do not have permission to perform this action.';
+      }
+      
+      setError(errorMessage);
     } finally {
       setLocalLoading(false);
     }
@@ -69,11 +91,14 @@ export const PasswordModal: React.FC<PasswordModalProps> = ({
           </Alert>
         )}
 
-        <p className="text-gray-600 mb-4">{description}</p>
+        <p className="text-gray-600 dark:text-gray-400 mb-4">{description}</p>
 
         <PasswordInput
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={(e) => {
+            setPassword(e.target.value);
+            setError(''); // Clear error when typing
+          }}
           placeholder="Enter your password"
           autoFocus
           disabled={loading}

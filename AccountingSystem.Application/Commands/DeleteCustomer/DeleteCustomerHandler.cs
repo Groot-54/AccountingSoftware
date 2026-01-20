@@ -2,8 +2,6 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using AccountingSystem.Application.Interfaces;
-// using Microsoft.AspNetCore.Http;
-// using System.Security.Claims;
 
 namespace AccountingSystem.Application.Commands.DeleteCustomer;
 
@@ -26,10 +24,12 @@ public class DeleteCustomerHandler : IRequestHandler<DeleteCustomerCommand, Dele
     {
         try
         {
-            // Get current user from JWT token
+            // Get current user ID - try UserId first, then username
+            var userId = _currentUser.UserId;
             var username = _currentUser.Username;
 
-            if (string.IsNullOrEmpty(username))
+            // Need at least one identifier
+            if (!userId.HasValue && string.IsNullOrEmpty(username))
             {
                 return new DeleteCustomerResponse
                 {
@@ -38,9 +38,21 @@ public class DeleteCustomerHandler : IRequestHandler<DeleteCustomerCommand, Dele
                 };
             }
 
-            // Verify password
-            var user = await _context.Users
-                .FirstOrDefaultAsync(u => u.Username == username && u.IsActive, cancellationToken);
+            // Find user by ID or username
+            User? user = null;
+            
+            if (userId.HasValue)
+            {
+                user = await _context.Users
+                    .FirstOrDefaultAsync(u => u.Id == userId.Value && u.IsActive, cancellationToken);
+            }
+            
+            // Fallback to username if user not found by ID
+            if (user == null && !string.IsNullOrEmpty(username))
+            {
+                user = await _context.Users
+                    .FirstOrDefaultAsync(u => u.Username == username && u.IsActive, cancellationToken);
+            }
 
             if (user == null)
             {

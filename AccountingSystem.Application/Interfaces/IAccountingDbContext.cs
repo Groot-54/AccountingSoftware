@@ -9,6 +9,7 @@ namespace AccountingSystem.Application.Interfaces
     {
         DbSet<Customer> Customers { get; }
         DbSet<User> Users { get; }
+        DbSet<Transaction> Transactions { get; }
         Task<int> SaveChangesAsync(CancellationToken cancellationToken);
     }
 }

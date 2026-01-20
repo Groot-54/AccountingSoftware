@@ -6,6 +6,7 @@ using AccountingSystem.Application.Commands.UpdateCustomer;
 using AccountingSystem.Application.Commands.DeleteCustomer;
 using Microsoft.EntityFrameworkCore;
 using AccountingSystem.Infrastructure.Data;
+using AccountingSystem.Core.Enums;
 using System.Security.Claims;
 
 namespace AccountingSystem.API.Controllers;
@@ -155,6 +156,12 @@ public class CustomersController : ControllerBase
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             long? userId = userIdClaim != null ? long.Parse(userIdClaim) : null;
 
+            // Parse balance type from string to enum
+            if (!Enum.TryParse<BalanceType>(dto.OpeningBalanceType, true, out var balanceType))
+            {
+                return BadRequest(new { message = "Invalid balance type. Must be 'CR' or 'DR'" });
+            }
+
             var command = new UpdateCustomerCommand
             {
                 Id = id,
@@ -167,7 +174,7 @@ public class CustomersController : ControllerBase
                 State = dto.State,
                 ZipCode = dto.ZipCode,
                 OpeningBalance = dto.OpeningBalance,
-                OpeningBalanceType = dto.OpeningBalanceType,
+                OpeningBalanceType = balanceType, // Use parsed enum
                 OpeningBalanceDate = dto.OpeningBalanceDate,
                 IsSettled = dto.IsSettled,
                 UpdatedBy = userId
@@ -298,6 +305,38 @@ public class CustomersController : ControllerBase
             return StatusCode(500, new { message = "Error settling customer" });
         }
     }
+
+    /// <summary>
+    /// Unsettle (reactivate) customer account
+    /// </summary>
+    [HttpPost("{id}/unsettle")]
+    public async Task<IActionResult> UnsettleCustomer(long id)
+    {
+        try
+        {
+            var customer = await _context.Customers
+                .FirstOrDefaultAsync(c => c.Id == id && c.IsActive);
+
+            if (customer == null)
+                return NotFound(new { message = "Customer not found" });
+
+            if (!customer.IsSettled)
+                return BadRequest(new { message = "Customer is not settled" });
+
+            customer.IsSettled = false;
+            customer.SettlementDate = null;
+            customer.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Customer reactivated successfully" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error unsettling customer {Id}", id);
+            return StatusCode(500, new { message = "Error unsettling customer" });
+        }
+    }
 }
 
 // DTOs
@@ -322,6 +361,7 @@ public record CustomerDto
     public DateTime UpdatedAt { get; init; }
 }
 
+// FIXED: Changed OpeningBalanceType from enum to string
 public record UpdateCustomerDto
 {
     public string CustomerName { get; init; } = string.Empty;
@@ -333,7 +373,7 @@ public record UpdateCustomerDto
     public string? State { get; init; }
     public string? ZipCode { get; init; }
     public decimal OpeningBalance { get; init; }
-    public AccountingSystem.Core.Enums.BalanceType OpeningBalanceType { get; init; }
+    public string OpeningBalanceType { get; init; } = "CR"; // Changed to string!
     public DateTime? OpeningBalanceDate { get; init; }
     public bool IsSettled { get; init; }
 }

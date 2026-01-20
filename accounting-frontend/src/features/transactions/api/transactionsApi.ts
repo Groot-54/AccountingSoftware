@@ -1,4 +1,4 @@
-// src/features/transactions/api/transactionsApi.ts
+// src/features/transactions/api/transactionsApi.ts - FIXED VERSION
 import api from '@/lib/api';
 import type {
   Transaction,
@@ -52,12 +52,23 @@ export const transactionsApi = {
     return response.data;
   },
 
-  // Delete transaction
+  // Delete transaction - FIXED: Proper password in request body
   delete: async (id: number, password: string): Promise<{ message: string }> => {
-    const response = await api.delete(`/transactions/${id}`, {
-      data: { password } as DeleteTransactionDto
-    });
-    return response.data;
+    console.log('Deleting transaction:', { id, hasPassword: !!password });
+    
+    try {
+      const response = await api.delete(`/transactions/${id}`, {
+        data: { 
+          password: password.trim() // Ensure no whitespace
+        }
+      });
+      
+      console.log('Delete response:', response.data);
+      return response.data;
+    } catch (error: any) {
+      console.error('Delete transaction error:', error.response || error);
+      throw error;
+    }
   },
 
   // Get transactions by customer
