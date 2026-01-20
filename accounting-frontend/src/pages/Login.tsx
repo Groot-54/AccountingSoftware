@@ -3,10 +3,12 @@ import { useState } from 'react';
 import { useAuth } from '../features/auth/hooks/useAuth';
 import { Button, Input, Card, Alert } from '@/components/ui';
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
+import { Eye, EyeOff } from 'lucide-react';
 
 export default function Login() {
   const [credentials, setCredentials] = useState({ username: '', password: '' });
   const { login, isLoggingIn, loginError } = useAuth();
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,10 +41,19 @@ export default function Login() {
 
           <Input
             label="Password"
-            type="password"
+            type={showPassword ? "text" : "password"}
             value={credentials.password}
             onChange={(e) => setCredentials({ ...credentials, password: e.target.value })}
             required
+            rightIcon={
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            }
           />
 
           {loginError && (
