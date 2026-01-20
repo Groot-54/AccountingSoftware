@@ -120,7 +120,14 @@ public class AuthController : ControllerBase
     {
         try
         {
-            var userId = long.Parse(User.FindFirst("UserId")?.Value ?? "0");
+            // Use standard ClaimTypes
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var userId = long.Parse(userIdClaim ?? "0");
+
+            if (userId == 0)
+            {
+                return BadRequest(new { message = "Invalid user" });
+            }
 
             // Revoke all refresh tokens for user
             var tokens = await _context.RefreshTokens
@@ -149,7 +156,15 @@ public class AuthController : ControllerBase
     {
         try
         {
-            var userId = long.Parse(User.FindFirst("UserId")?.Value ?? "0");
+            // Use standard ClaimTypes
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var userId = long.Parse(userIdClaim ?? "0");
+
+            if (userId == 0)
+            {
+                return Unauthorized();
+            }
+
             var user = await _context.Users.FindAsync(userId);
 
             if (user == null)
@@ -178,7 +193,15 @@ public class AuthController : ControllerBase
     {
         try
         {
-            var userId = long.Parse(User.FindFirst("UserId")?.Value ?? "0");
+            // Use standard ClaimTypes
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var userId = long.Parse(userIdClaim ?? "0");
+
+            if (userId == 0)
+            {
+                return Unauthorized();
+            }
+
             var user = await _context.Users.FindAsync(userId);
 
             if (user == null)
@@ -224,7 +247,15 @@ public class AuthController : ControllerBase
     {
         try
         {
-            var userId = long.Parse(User.FindFirst("UserId")?.Value ?? "0");
+            // Use standard ClaimTypes
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var userId = long.Parse(userIdClaim ?? "0");
+
+            if (userId == 0)
+            {
+                return Unauthorized();
+            }
+
             var user = await _context.Users.FindAsync(userId);
 
             if (user == null)
@@ -250,13 +281,21 @@ public class AuthController : ControllerBase
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
+        // FIXED: Use standard ClaimTypes that match CurrentUserService
         var claims = new[]
         {
+            // Standard JWT claims
             new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new Claim(JwtRegisteredClaimNames.Email, user.Email ?? ""),
+            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+            
+            // Standard ClaimTypes for CurrentUserService
+            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),  // ✅ For UserId
+            new Claim(ClaimTypes.Name, user.Username),                 // ✅ For Username
+            
+            // Backward compatibility (optional - can keep for frontend)
             new Claim("UserId", user.Id.ToString()),
-            new Claim("Username", user.Username),
-            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+            new Claim("Username", user.Username)
         };
 
         var token = new JwtSecurityToken(

@@ -12,7 +12,7 @@ public static class DatabaseSeeder
         var context = scope.ServiceProvider.GetRequiredService<AccountingDbContext>();
         
         // Ensure database is created
-        await context.Database.EnsureCreatedAsync();
+        // await context.Database.EnsureCreatedAsync();
         
         // Check if admin user exists
         if (!context.Users.Any())

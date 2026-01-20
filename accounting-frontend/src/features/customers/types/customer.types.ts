@@ -1,9 +1,10 @@
 // src/features/customers/types/customer.types.ts
+
 export interface Customer {
   id: number;
   customerName: string;
-  phone?: string;
   mobile?: string;
+  phone?: string;
   email?: string;
   address?: string;
   city?: string;
@@ -21,8 +22,8 @@ export interface Customer {
 
 export interface CreateCustomerDto {
   customerName: string;
-  phone?: string;
   mobile?: string;
+  phone?: string;
   email?: string;
   address?: string;
   city?: string;
@@ -30,11 +31,31 @@ export interface CreateCustomerDto {
   zipCode?: string;
 }
 
-export interface UpdateCustomerDto extends Partial<CreateCustomerDto> {}
+export interface UpdateCustomerDto {
+  customerName: string;
+  mobile?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  openingBalance: number;
+  openingBalanceType: 'CR' | 'DR';
+  openingBalanceDate?: string;
+  isSettled: boolean;
+}
+
+export interface DeleteCustomerDto {
+  password: string;
+}
 
 export interface CustomerBalance {
+  customerId: number;
+  customerName: string;
   balance: number;
-  type: 'CR' | 'DR';
-  currentYearBalance: number;
-  oldYearBalance: number;
+  balanceType: 'CR' | 'DR';
+  year?: number;
+  openingBalance: number;
+  lastTransactionDate?: string;
 }

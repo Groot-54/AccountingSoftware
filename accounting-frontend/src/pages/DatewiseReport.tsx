@@ -1,356 +1,293 @@
+// src/pages/DatewiseReport.tsx - REFACTORED
 import { useState } from 'react';
-import { Printer, Download, Calendar } from 'lucide-react';
-import { useTransactions } from '../features/transactions/hooks/useTransactions';
+import { Download, Printer, Calendar, Search } from 'lucide-react';
+import { useDateWiseReport } from '../features/reports/hooks/useReports';
+import { formatCurrency, formatDate, getBalanceColor } from '@/lib/utils';
+
+import {
+  Button,
+  Input,
+  Table,
+  Card,
+  Badge,
+  EmptyState,
+  LoadingSpinner,
+} from '@/components/ui';
+import { PageHeader } from '@/components/shared/PageHeader';
 
 export default function DatewiseReport() {
-  const { transactions, isLoading } = useTransactions();
-  
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [filterApplied, setFilterApplied] = useState(false);
+  const today = new Date().toISOString().split('T')[0];
+  const firstDayOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+    .toISOString().split('T')[0];
 
-  const filteredTransactions = transactions?.filter(t => {
-    if (!filterApplied) return false;
-    
-    const transDate = new Date(t.transactionDate);
-    const matchesStartDate = !startDate || transDate >= new Date(startDate);
-    const matchesEndDate = !endDate || transDate <= new Date(endDate);
-    
-    return matchesStartDate && matchesEndDate;
-  }) || [];
+  const [startDate, setStartDate] = useState(firstDayOfMonth);
+  const [endDate, setEndDate] = useState(today);
+  const [searchTerm, setSearchTerm] = useState('');
 
-  const totalCredit = filteredTransactions
-    .filter(t => t.transactionType === 'CREDIT')
-    .reduce((sum, t) => sum + t.creditAmount, 0);
+  const { data: report, isLoading } = useDateWiseReport(startDate, endDate);
 
-  const totalDebit = filteredTransactions
-    .filter(t => t.transactionType === 'DEBIT')
-    .reduce((sum, t) => sum + t.debitAmount, 0);
-
-  const netBalance = totalCredit - totalDebit;
-
-  const groupedByCustomer = filteredTransactions.reduce((acc, t) => {
-    const customerId = t.customerId;
-    if (!acc[customerId]) {
-      acc[customerId] = {
-        customerName: t.customerName || 'Unknown',
-        transactions: [],
-        totalCredit: 0,
-        totalDebit: 0,
-      };
-    }
-    acc[customerId].transactions.push(t);
-    if (t.transactionType === 'CREDIT') {
-      acc[customerId].totalCredit += t.creditAmount;
-    } else {
-      acc[customerId].totalDebit += t.debitAmount;
-    }
-    return acc;
-  }, {} as Record<number, any>);
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      minimumFractionDigits: 2,
-    }).format(amount);
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-IN', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  };
-
-  const handleGenerate = () => {
-    if (!startDate || !endDate) {
-      alert('Please select both start and end dates');
-      return;
-    }
-    setFilterApplied(true);
-  };
-
-  const handleReset = () => {
-    setStartDate('');
-    setEndDate('');
-    setFilterApplied(false);
-  };
-
-  const handlePrint = () => {
-    window.print();
-  };
+  const handlePrint = () => window.print();
 
   const handleExport = () => {
-    if (filteredTransactions.length === 0) {
-      alert('No data to export');
-      return;
-    }
+    if (!report) return;
 
-    let csv = 'Date,Customer,Type,Amount,Description,Running Balance\n';
-    filteredTransactions.forEach(t => {
-      const amount = t.transactionType === 'CREDIT' ? t.creditAmount : t.debitAmount;
-      csv += `${formatDate(t.transactionDate)},"${t.customerName || 'Unknown'}",${t.transactionType},${amount},"${t.description || ''}",${t.runningBalance || 0}\n`;
-    });
+    const headers = ['Date', 'Customer', 'Description', 'Type', 'Credit', 'Debit', 'Balance', 'Balance Type'];
+    const rows = report.entries.map(e => [
+      formatDate(e.date),
+      e.customerName,
+      e.description || '-',
+      e.transactionType,
+      e.creditAmount.toFixed(2),
+      e.debitAmount.toFixed(2),
+      e.balance.toFixed(2),
+      e.balanceType
+    ]);
 
-    const blob = new Blob([csv], { type: 'text/csv' });
+    const csvContent = [
+      ['Date-Wise Report'],
+      [`Period: ${formatDate(startDate)} to ${formatDate(endDate)}`],
+      [`Total Transactions: ${report.totalTransactions}`],
+      [],
+      headers.join(','),
+      ...rows.map(row => row.join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `datewise_report_${startDate}_to_${endDate}.csv`;
+    a.download = `datewise-report-${startDate}-to-${endDate}.csv`;
     a.click();
+    window.URL.revokeObjectURL(url);
   };
 
+  const filteredEntries = report?.entries.filter(e =>
+    e.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    e.description?.toLowerCase().includes(searchTerm.toLowerCase())
+  ) || [];
+
+  // Table columns
+  const columns = [
+    {
+      key: 'date',
+      header: 'Date',
+      headerClassName: 'text-left',
+      className: 'text-gray-900 dark:text-gray-100',
+      render: (e: any) => formatDate(e.date),
+    },
+    {
+      key: 'customerName',
+      header: 'Customer',
+      headerClassName: 'text-left',
+      className: 'font-medium text-gray-900 dark:text-gray-100',
+    },
+    {
+      key: 'description',
+      header: 'Description',
+      headerClassName: 'text-left',
+      className: 'text-gray-600 dark:text-gray-400',
+      render: (e: any) => e.description || '-',
+    },
+    {
+      key: 'transactionType',
+      header: 'Type',
+      headerClassName: 'text-center',
+      className: 'text-center',
+      render: (e: any) => (
+        <Badge variant={e.transactionType === 'Credit' ? 'success' : 'error'}>
+          {e.transactionType}
+        </Badge>
+      ),
+    },
+    {
+      key: 'creditAmount',
+      header: 'Credit',
+      headerClassName: 'text-right',
+      className: 'text-right text-green-600',
+      render: (e: any) => e.creditAmount > 0 ? formatCurrency(e.creditAmount) : '-',
+    },
+    {
+      key: 'debitAmount',
+      header: 'Debit',
+      headerClassName: 'text-right',
+      className: 'text-right text-red-600',
+      render: (e: any) => e.debitAmount > 0 ? formatCurrency(e.debitAmount) : '-',
+    },
+    {
+      key: 'balance',
+      header: 'Balance',
+      headerClassName: 'text-right',
+      className: 'text-right',
+      render: (e: any) => (
+        <span className={`font-medium ${getBalanceColor(e.balanceType)}`}>
+          {formatCurrency(e.balance)} {e.balanceType}
+        </span>
+      ),
+    },
+  ];
+
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-gray-600">Loading...</div>
-      </div>
-    );
+    return <LoadingSpinner fullScreen text="Loading report..." />;
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="mb-6 print:hidden">
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">Date-wise Report</h1>
-        <p className="text-gray-600">View transactions for a specific date range</p>
-      </div>
-
-      {/* Date Range Selector */}
-      <div className="bg-white rounded-lg shadow p-6 mb-6 print:hidden">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Start Date *
-            </label>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              End Date *
-            </label>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-
-          <div className="flex items-end">
-            <button
-              onClick={handleGenerate}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 mr-2"
-            >
-              <Calendar size={18} />
-              Generate
-            </button>
-            <button
-              onClick={handleReset}
-              className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-            >
-              Reset
-            </button>
-          </div>
-        </div>
-
-        {filterApplied && (
-          <div className="mt-4 flex gap-3">
-            <button
-              onClick={handlePrint}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
-            >
-              <Printer size={18} />
+    <div className="max-w-7xl mx-auto">
+      <PageHeader
+        title="Date-Wise Report"
+        description="All transactions within date range"
+        actions={
+          <>
+            <Button variant="secondary" icon={Printer} onClick={handlePrint} disabled={!report}>
               Print
-            </button>
-            <button
-              onClick={handleExport}
-              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2"
-            >
-              <Download size={18} />
+            </Button>
+            <Button variant="success" icon={Download} onClick={handleExport} disabled={!report}>
               Export CSV
-            </button>
-          </div>
-        )}
-      </div>
+            </Button>
+          </>
+        }
+      />
 
-      {/* Report Content */}
-      {filterApplied ? (
-        <div>
-          {/* Date Range Header */}
-          <div className="bg-white rounded-lg shadow p-6 mb-6">
-            <h2 className="text-xl font-bold text-gray-800 mb-2">
-              Report Period: {formatDate(startDate)} to {formatDate(endDate)}
-            </h2>
-            <p className="text-gray-600">Total Transactions: {filteredTransactions.length}</p>
-          </div>
+      {/* Filters */}
+      <Card className="mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Input
+            type="date"
+            label="Start Date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+          />
 
-          {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div className="bg-white rounded-lg shadow p-4 border-l-4 border-green-500">
-              <div className="text-sm text-gray-600 mb-1">Total Credit</div>
-              <div className="text-2xl font-bold text-green-600">
-                {formatCurrency(totalCredit)}
-              </div>
-              <div className="text-xs text-gray-500 mt-1">
-                {filteredTransactions.filter(t => t.transactionType === 'CREDIT').length} transactions
-              </div>
-            </div>
-            <div className="bg-white rounded-lg shadow p-4 border-l-4 border-red-500">
-              <div className="text-sm text-gray-600 mb-1">Total Debit</div>
-              <div className="text-2xl font-bold text-red-600">
-                {formatCurrency(totalDebit)}
-              </div>
-              <div className="text-xs text-gray-500 mt-1">
-                {filteredTransactions.filter(t => t.transactionType === 'DEBIT').length} transactions
-              </div>
-            </div>
-            <div className="bg-white rounded-lg shadow p-4 border-l-4 border-blue-500">
-              <div className="text-sm text-gray-600 mb-1">Net Balance</div>
-              <div className={`text-2xl font-bold ${netBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {formatCurrency(Math.abs(netBalance))}
-              </div>
-              <div className="text-xs text-gray-500 mt-1">
-                {netBalance >= 0 ? 'Credit' : 'Debit'}
-              </div>
-            </div>
-          </div>
+          <Input
+            type="date"
+            label="End Date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+          />
 
-          {/* Customer-wise Summary */}
-          <div className="bg-white rounded-lg shadow mb-6 overflow-hidden">
-            <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-800">Customer-wise Summary</h3>
-            </div>
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Customer
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Transactions
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Total Credit
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Total Debit
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Net
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {Object.entries(groupedByCustomer).map(([customerId, data]: [string, any]) => {
-                  const net = data.totalCredit - data.totalDebit;
-                  return (
-                    <tr key={customerId} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {data.customerName}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {data.transactions.length}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600">
-                        {formatCurrency(data.totalCredit)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600">
-                        {formatCurrency(data.totalDebit)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <span className={net >= 0 ? 'text-green-600' : 'text-red-600'}>
-                          {formatCurrency(Math.abs(net))}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* All Transactions */}
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-800">All Transactions</h3>
-            </div>
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Date
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Customer
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Type
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Description
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Amount
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredTransactions.map((transaction) => (
-                  <tr key={transaction.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {formatDate(transaction.transactionDate)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {transaction.customerName || 'Unknown'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs rounded-full ${
-                        transaction.transactionType === 'CREDIT'
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-red-100 text-red-800'
-                      }`}>
-                        {transaction.transactionType}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500">
-                      {transaction.description || '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <span className={transaction.transactionType === 'CREDIT' ? 'text-green-600' : 'text-red-600'}>
-                        {formatCurrency(transaction.creditAmount)}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            {filteredTransactions.length === 0 && (
-              <div className="text-center py-8 text-gray-500">
-                No transactions found for the selected date range
-              </div>
-            )}
-          </div>
+          <Input
+            label="Search"
+            placeholder="Customer or description..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            leftIcon={<Search size={20} />}
+          />
         </div>
-      ) : (
-        <div className="bg-white rounded-lg shadow p-12 text-center">
-          <Calendar size={48} className="mx-auto text-gray-400 mb-4" />
-          <h3 className="text-lg font-semibold text-gray-700 mb-2">
-            Select Date Range
-          </h3>
-          <p className="text-gray-500">
-            Choose start and end dates above and click Generate to view the report
-          </p>
+      </Card>
+
+      {/* Summary Cards */}
+      {report && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <Card padding="sm" className="bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-200 dark:border-blue-800">
+            <p className="text-sm text-blue-600 dark:text-blue-400 font-medium">Total Transactions</p>
+            <p className="text-2xl font-bold text-blue-900 dark:text-blue-100 mt-1">{report.totalTransactions}</p>
+          </Card>
+
+          <Card padding="sm" className="bg-green-50 dark:bg-green-900/20 border-2 border-green-200 dark:border-green-800">
+            <p className="text-sm text-green-600 dark:text-green-400 font-medium">Total Credit</p>
+            <p className="text-2xl font-bold text-green-900 dark:text-green-100 mt-1">
+              {formatCurrency(report.totalCredit)}
+            </p>
+          </Card>
+
+          <Card padding="sm" className="bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800">
+            <p className="text-sm text-red-600 dark:text-red-400 font-medium">Total Debit</p>
+            <p className="text-2xl font-bold text-red-900 dark:text-red-100 mt-1">
+              {formatCurrency(report.totalDebit)}
+            </p>
+          </Card>
+
+          <Card padding="sm" className={`border-2 ${
+            report.netAmount >= 0 
+              ? 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800' 
+              : 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800'
+          }`}>
+            <p className={`text-sm font-medium ${
+              report.netAmount >= 0 ? 'text-purple-600 dark:text-purple-400' : 'text-orange-600 dark:text-orange-400'
+            }`}>
+              Net Amount
+            </p>
+            <p className={`text-2xl font-bold mt-1 ${
+              report.netAmount >= 0 ? 'text-purple-900 dark:text-purple-100' : 'text-orange-900 dark:text-orange-100'
+            }`}>
+              {formatCurrency(Math.abs(report.netAmount))}
+            </p>
+            <p className={`text-xs mt-1 ${
+              report.netAmount >= 0 ? 'text-purple-600 dark:text-purple-400' : 'text-orange-600 dark:text-orange-400'
+            }`}>
+              {report.netAmount >= 0 ? 'Surplus' : 'Deficit'}
+            </p>
+          </Card>
         </div>
       )}
+
+      {/* Report Table */}
+      {!report || report.entries.length === 0 ? (
+        <EmptyState
+          icon={Calendar}
+          title="No transactions found"
+          description="There are no transactions in the selected date range"
+        />
+      ) : (
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className="bg-gray-50 dark:bg-gray-900">
+                <tr>
+                  {columns.map((col) => (
+                    <th key={col.key} className={`px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider ${col.headerClassName}`}>
+                      {col.header}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                {filteredEntries.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
+                      No transactions found matching your search
+                    </td>
+                  </tr>
+                ) : (
+                  <>
+                    {filteredEntries.map((entry) => (
+                      <tr key={entry.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                        {columns.map((col) => (
+                          <td key={col.key} className={`px-4 py-3 text-sm ${col.className}`}>
+                            {col.render ? col.render(entry) : (entry as any)[col.key]}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                    
+                    {/* Total Row */}
+                    <tr className="bg-gray-100 dark:bg-gray-900 font-bold">
+                      <td colSpan={4} className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100">
+                        TOTAL ({filteredEntries.length} transactions)
+                      </td>
+                      <td className="px-4 py-3 text-sm text-right text-green-600">
+                        {formatCurrency(filteredEntries.reduce((sum, e) => sum + e.creditAmount, 0))}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-right text-red-600">
+                        {formatCurrency(filteredEntries.reduce((sum, e) => sum + e.debitAmount, 0))}
+                      </td>
+                      <td className="px-4 py-3"></td>
+                    </tr>
+                  </>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @media print {
+          body * { visibility: hidden; }
+          .print-area, .print-area * { visibility: visible; }
+          .print-area { position: absolute; left: 0; top: 0; }
+          button { display: none !important; }
+        }
+      `}</style>
     </div>
   );
 }

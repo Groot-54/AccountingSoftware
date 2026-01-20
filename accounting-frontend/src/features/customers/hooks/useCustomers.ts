@@ -3,13 +3,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { customersApi } from '../api/customersApi';
 import type { CreateCustomerDto, UpdateCustomerDto } from '../types/customer.types';
 
-export const useCustomers = () => {
+export const useCustomers = (includeInactive = false) => {
   const queryClient = useQueryClient();
 
   // Get all customers
   const { data: customers, isLoading, error } = useQuery({
-    queryKey: ['customers'],
-    queryFn: customersApi.getAll,
+    queryKey: ['customers', includeInactive],
+    queryFn: () => customersApi.getAll(includeInactive),
   });
 
   // Create customer mutation
@@ -29,9 +29,18 @@ export const useCustomers = () => {
     },
   });
 
-  // Delete customer mutation
+  // Delete customer mutation - now accepts both id and password
   const deleteMutation = useMutation({
-    mutationFn: customersApi.delete,
+    mutationFn: ({ id, password }: { id: number; password: string }) =>
+      customersApi.delete(id, password),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+    },
+  });
+
+  // Settle customer mutation
+  const settleMutation = useMutation({
+    mutationFn: customersApi.settle,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers'] });
     },
@@ -44,9 +53,11 @@ export const useCustomers = () => {
     createCustomer: createMutation.mutateAsync,
     updateCustomer: updateMutation.mutateAsync,
     deleteCustomer: deleteMutation.mutateAsync,
+    settleCustomer: settleMutation.mutateAsync,
     isCreating: createMutation.isPending,
     isUpdating: updateMutation.isPending,
     isDeleting: deleteMutation.isPending,
+    isSettling: settleMutation.isPending,
   };
 };
 

@@ -1,203 +1,254 @@
-// src/pages/Dashboard.tsx
-import React from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Users, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
-import api from '@/lib/api';
+// src/pages/Dashboard.tsx - REFACTORED
+import { useState } from 'react';
+import { Users, TrendingUp, TrendingDown, DollarSign, Calendar } from 'lucide-react';
+import { useDashboardOverview, useDashboardStats } from '../features/dashboard/hooks/useDashboard';
+import { useNavigate } from 'react-router-dom';
 import { formatCurrency, formatDate } from '@/lib/utils';
 
-interface DashboardStats {
-  totalCustomers: number;
-  activeCustomers: number;
-  totalCredit: number;
-  totalDebit: number;
-  netBalance: number;
-  currentYearCredit: number;
-  currentYearDebit: number;
-}
+import {
+  Button,
+  Table,
+  Select,
+  EmptyState,
+  LoadingSpinner,
+  Badge,
+} from '@/components/ui';
+import { PageHeader } from '@/components/shared/PageHeader';
+import { StatCard } from '@/components/shared/StatCard';
 
-interface RecentTransaction {
-  id: number;
-  customerName: string;
-  transactionDate: string;
-  description: string;
-  creditAmount: number;
-  debitAmount: number;
-  runningBalance: number;
-}
+export default function Dashboard() {
+  const navigate = useNavigate();
+  const currentYear = new Date().getFullYear();
+  const [selectedYear, setSelectedYear] = useState(currentYear);
 
-export const Dashboard: React.FC = () => {
-  // Fetch dashboard stats
-  const { data: stats, isLoading: statsLoading } = useQuery({
-    queryKey: ['dashboardStats'],
-    queryFn: async (): Promise<DashboardStats> => {
-      const response = await api.get('/dashboard/stats');
-      return response.data;
-    },
-  });
+  const { data: overview, isLoading: overviewLoading } = useDashboardOverview(selectedYear);
+  const { data: stats } = useDashboardStats();
 
-  // Fetch recent transactions
-  const { data: recentTransactions, isLoading: transactionsLoading } = useQuery({
-    queryKey: ['recentTransactions'],
-    queryFn: async (): Promise<RecentTransaction[]> => {
-      const response = await api.get('/dashboard/recent-transactions', {
-        params: { limit: 10 }
-      });
-      return response.data;
-    },
-  });
-
-  const statCards = [
+  // Table columns for recent transactions
+  const columns = [
     {
-      label: 'Total Customers',
-      value: stats?.totalCustomers.toString() || '0',
-      subValue: `${stats?.activeCustomers || 0} active`,
-      icon: Users,
-      color: 'bg-blue-500',
-      textColor: 'text-blue-600',
+      key: 'customerName',
+      header: 'Customer',
+      headerClassName: 'text-left',
+      className: 'font-medium text-gray-900 dark:text-gray-100',
     },
     {
-      label: 'Total Credit',
-      value: formatCurrency(stats?.totalCredit || 0),
-      subValue: `This year: ${formatCurrency(stats?.currentYearCredit || 0)}`,
-      icon: TrendingUp,
-      color: 'bg-green-500',
-      textColor: 'text-green-600',
+      key: 'transactionDate',
+      header: 'Date',
+      headerClassName: 'text-left',
+      render: (t: any) => (
+        <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+          <Calendar size={14} />
+          {formatDate(t.transactionDate)}
+        </div>
+      ),
     },
     {
-      label: 'Total Debit',
-      value: formatCurrency(stats?.totalDebit || 0),
-      subValue: `This year: ${formatCurrency(stats?.currentYearDebit || 0)}`,
-      icon: TrendingDown,
-      color: 'bg-red-500',
-      textColor: 'text-red-600',
+      key: 'description',
+      header: 'Description',
+      headerClassName: 'text-left',
+      className: 'text-gray-600 dark:text-gray-400',
+      render: (t: any) => t.description || '-',
     },
     {
-      label: 'Net Balance',
-      value: formatCurrency(stats?.netBalance || 0),
-      subValue: stats?.netBalance && stats.netBalance >= 0 ? 'Surplus' : 'Deficit',
-      icon: DollarSign,
-      color: 'bg-purple-500',
-      textColor: 'text-purple-600',
+      key: 'amount',
+      header: 'Amount',
+      headerClassName: 'text-right',
+      className: 'text-right',
+      render: (t: any) => (
+        <span className={`font-medium ${t.type === 'Credit' ? 'text-green-600' : 'text-red-600'}`}>
+          {t.type === 'Credit' ? '+' : '-'}{formatCurrency(t.amount)}
+        </span>
+      ),
+    },
+    {
+      key: 'runningBalance',
+      header: 'Running Balance',
+      headerClassName: 'text-right',
+      className: 'text-right font-medium text-gray-900 dark:text-gray-100',
+      render: (t: any) => (
+        <>
+          {formatCurrency(Math.abs(t.runningBalance))}{' '}
+          <span className="text-xs text-gray-500">{t.runningBalance >= 0 ? 'CR' : 'DR'}</span>
+        </>
+      ),
     },
   ];
 
-  if (statsLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
+  if (overviewLoading) {
+    return <LoadingSpinner fullScreen text="Loading dashboard..." />;
   }
 
   return (
-    <div>
-      <h1 className="text-3xl font-bold mb-6">Dashboard</h1>
+    <div className="max-w-7xl mx-auto">
+      <PageHeader
+        title="Dashboard"
+        description="Overview of your accounting system"
+        icon={TrendingUp}
+        actions={
+          <Select
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(Number(e.target.value))}
+            options={Array.from({ length: 10 }, (_, i) => currentYear - i).map(year => ({
+              value: year,
+              label: `Year ${year}`
+            }))}
+          />
+        }
+      />
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {statCards.map((stat, idx) => (
-          <div key={idx} className="bg-white rounded-lg shadow-md p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-500 text-sm mb-1">{stat.label}</p>
-                <p className={`text-2xl font-bold ${stat.textColor}`}>
-                  {stat.value}
-                </p>
-                <p className="text-xs text-gray-400 mt-1">{stat.subValue}</p>
-              </div>
-              <div className={`${stat.color} p-3 rounded-lg text-white`}>
-                <stat.icon size={24} />
-              </div>
-            </div>
-          </div>
-        ))}
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+        <StatCard
+          title="Total Customers"
+          value={overview?.totalCustomers || 0}
+          subtitle={`${overview?.activeCustomers || 0} active`}
+          icon={Users}
+          iconBgColor="bg-blue-100 dark:bg-blue-900/30"
+          iconColor="text-blue-600 dark:text-blue-400"
+          trend={stats?.growth.customerGrowth ? {
+            value: stats.growth.customerGrowth,
+            label: 'from last month'
+          } : undefined}
+          onClick={() => navigate('/customers')}
+        />
+
+        <StatCard
+          title="Total Credit"
+          value={formatCurrency(overview?.totalCredit || 0)}
+          subtitle="This year"
+          icon={TrendingUp}
+          iconBgColor="bg-green-100 dark:bg-green-900/30"
+          iconColor="text-green-600 dark:text-green-400"
+          trend={stats?.growth.creditGrowth ? {
+            value: stats.growth.creditGrowth,
+            label: 'from last month'
+          } : undefined}
+        />
+
+        <StatCard
+          title="Total Debit"
+          value={formatCurrency(overview?.totalDebit || 0)}
+          subtitle="This year"
+          icon={TrendingDown}
+          iconBgColor="bg-red-100 dark:bg-red-900/30"
+          iconColor="text-red-600 dark:text-red-400"
+          trend={stats?.growth.debitGrowth ? {
+            value: stats.growth.debitGrowth,
+            label: 'from last month'
+          } : undefined}
+        />
+
+        <StatCard
+          title="Net Balance"
+          value={formatCurrency(Math.abs(overview?.netBalance || 0))}
+          subtitle={(overview?.netBalance || 0) >= 0 ? 'Surplus' : 'Deficit'}
+          icon={DollarSign}
+          iconBgColor={(overview?.netBalance || 0) >= 0 ? 'bg-purple-100 dark:bg-purple-900/30' : 'bg-orange-100 dark:bg-orange-900/30'}
+          iconColor={(overview?.netBalance || 0) >= 0 ? 'text-purple-600 dark:text-purple-400' : 'text-orange-600 dark:text-orange-400'}
+        />
       </div>
 
-      {/* Recent Transactions */}
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-xl font-bold mb-4">Recent Transactions</h2>
-
-        {transactionsLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      {/* Monthly Summary */}
+      {overview && overview.monthlySummary.length > 0 && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow mb-6 overflow-hidden">
+          <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+            <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100">
+              Monthly Summary - {selectedYear}
+            </h2>
           </div>
-        ) : recentTransactions && recentTransactions.length > 0 ? (
           <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b bg-gray-50">
-                  <th className="text-left p-3 font-medium text-gray-700">Date</th>
-                  <th className="text-left p-3 font-medium text-gray-700">Customer</th>
-                  <th className="text-left p-3 font-medium text-gray-700">Description</th>
-                  <th className="text-right p-3 font-medium text-gray-700">Credit</th>
-                  <th className="text-right p-3 font-medium text-gray-700">Debit</th>
-                  <th className="text-right p-3 font-medium text-gray-700">Balance</th>
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className="bg-gray-50 dark:bg-gray-900">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Month</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Credit</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Debit</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Net Amount</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Transactions</th>
                 </tr>
               </thead>
-              <tbody>
-                {recentTransactions.map((txn) => (
-                  <tr key={txn.id} className="border-b hover:bg-gray-50 transition-colors">
-                    <td className="p-3 text-sm">
-                      {formatDate(txn.transactionDate)}
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                {overview.monthlySummary.map((month) => (
+                  <tr key={month.month} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">{month.monthName}</td>
+                    <td className="px-4 py-3 text-sm text-right text-green-600">{formatCurrency(month.credit)}</td>
+                    <td className="px-4 py-3 text-sm text-right text-red-600">{formatCurrency(month.debit)}</td>
+                    <td className={`px-4 py-3 text-sm text-right font-medium ${month.netAmount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {formatCurrency(Math.abs(month.netAmount))} {month.netAmount >= 0 ? 'CR' : 'DR'}
                     </td>
-                    <td className="p-3 font-medium">{txn.customerName}</td>
-                    <td className="p-3 text-sm text-gray-600">
-                      {txn.description || '-'}
-                    </td>
-                    <td className="p-3 text-right text-green-600 font-medium">
-                      {txn.creditAmount > 0
-                        ? formatCurrency(txn.creditAmount)
-                        : '-'}
-                    </td>
-                    <td className="p-3 text-right text-red-600 font-medium">
-                      {txn.debitAmount > 0
-                        ? formatCurrency(txn.debitAmount)
-                        : '-'}
-                    </td>
-                    <td className="p-3 text-right font-bold">
-                      {formatCurrency(txn.runningBalance)}
-                    </td>
+                    <td className="px-4 py-3 text-sm text-right text-gray-900 dark:text-gray-100">{month.transactionCount}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* Recent Transactions */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+          <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100">Recent Transactions</h2>
+          <Button variant="ghost" onClick={() => navigate('/expenses')}>
+            View All →
+          </Button>
+        </div>
+
+        {overview && overview.recentTransactions.length > 0 ? (
+          <Table
+            columns={columns}
+            data={overview.recentTransactions}
+            keyExtractor={(t) => t.id}
+          />
         ) : (
-          <div className="text-center py-8 text-gray-500">
-            No transactions yet
-          </div>
+          <EmptyState
+            icon={Calendar}
+            title="No transactions yet"
+            description="Start by creating a credit or debit entry"
+            action={
+              <div className="flex gap-3">
+                <Button variant="success" onClick={() => navigate('/credit')}>
+                  Credit Entry
+                </Button>
+                <Button variant="danger" onClick={() => navigate('/debit')}>
+                  Debit Entry
+                </Button>
+              </div>
+            }
+          />
         )}
       </div>
 
-      {/* Quick Actions (Optional) */}
+      {/* Quick Actions */}
       <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
         <button
-          onClick={() => window.location.href = '/customers'}
-          className="bg-white p-4 rounded-lg shadow-md hover:shadow-lg transition-shadow text-left"
+          onClick={() => navigate('/customers')}
+          className="bg-gradient-to-r from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700 text-white p-6 rounded-lg shadow hover:shadow-lg transition-all hover:scale-105"
         >
-          <Users className="text-blue-600 mb-2" size={24} />
-          <h3 className="font-semibold">Manage Customers</h3>
-          <p className="text-sm text-gray-600">Add or edit customer details</p>
+          <Users size={24} className="mb-2" />
+          <h3 className="font-bold text-lg">Manage Customers</h3>
+          <p className="text-sm text-blue-100 mt-1">Add or edit customer details</p>
         </button>
 
         <button
-          onClick={() => window.location.href = '/credit'}
-          className="bg-white p-4 rounded-lg shadow-md hover:shadow-lg transition-shadow text-left"
+          onClick={() => navigate('/credit')}
+          className="bg-gradient-to-r from-green-500 to-green-600 dark:from-green-600 dark:to-green-700 text-white p-6 rounded-lg shadow hover:shadow-lg transition-all hover:scale-105"
         >
-          <TrendingUp className="text-green-600 mb-2" size={24} />
-          <h3 className="font-semibold">Credit Entry</h3>
-          <p className="text-sm text-gray-600">Record payment received</p>
+          <TrendingUp size={24} className="mb-2" />
+          <h3 className="font-bold text-lg">Credit Entry</h3>
+          <p className="text-sm text-green-100 mt-1">Record payment received</p>
         </button>
 
         <button
-          onClick={() => window.location.href = '/debit'}
-          className="bg-white p-4 rounded-lg shadow-md hover:shadow-lg transition-shadow text-left"
+          onClick={() => navigate('/debit')}
+          className="bg-gradient-to-r from-red-500 to-red-600 dark:from-red-600 dark:to-red-700 text-white p-6 rounded-lg shadow hover:shadow-lg transition-all hover:scale-105"
         >
-          <TrendingDown className="text-red-600 mb-2" size={24} />
-          <h3 className="font-semibold">Debit Entry</h3>
-          <p className="text-sm text-gray-600">Record payment made</p>
+          <TrendingDown size={24} className="mb-2" />
+          <h3 className="font-bold text-lg">Debit Entry</h3>
+          <p className="text-sm text-red-100 mt-1">Record payment made</p>
         </button>
       </div>
     </div>
   );
-};
+}

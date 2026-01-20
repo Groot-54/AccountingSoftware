@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using AccountingSystem.Infrastructure.Data;
 using AccountingSystem.Core.Entities;
 using AccountingSystem.Core.Enums;
+using AccountingSystem.Application.Interfaces;
 
 namespace AccountingSystem.API.Controllers;
 
@@ -15,13 +16,16 @@ public class TransactionsController : ControllerBase
 {
     private readonly AccountingDbContext _context;
     private readonly ILogger<TransactionsController> _logger;
+    private readonly ICurrentUserService _currentUser;
 
     public TransactionsController(
         AccountingDbContext context,
-        ILogger<TransactionsController> logger)
+        ILogger<TransactionsController> logger,
+        ICurrentUserService currentUser)
     {
         _context = context;
         _logger = logger;
+        _currentUser = currentUser;
     }
 
     // GET: api/transactions
@@ -135,12 +139,25 @@ public class TransactionsController : ControllerBase
     {
         try
         {
-            // Validate customer exists
+            // Get current user ID
+            var userId = _currentUser.UserId;
+            if (!userId.HasValue)
+            {
+                return Unauthorized(new { message = "User not authenticated" });
+            }
+
+            // Validate customer exists and is active
             var customer = await _context.Customers
                 .FirstOrDefaultAsync(c => c.Id == dto.CustomerId && c.IsActive);
 
             if (customer == null)
                 return BadRequest(new { message = "Customer not found or inactive" });
+
+            // Check if customer is settled
+            if (customer.IsSettled)
+            {
+                return BadRequest(new { message = "Cannot create transactions for settled customers. Please unsettle the customer first." });
+            }
 
             // Get last transaction for running balance
             var lastTransaction = await _context.Transactions
@@ -165,7 +182,9 @@ public class TransactionsController : ControllerBase
                 TransactionType = TransactionType.Credit,
                 FinancialYear = dto.TransactionDate.Year,
                 Remark = dto.Remark,
+                CreatedBy = userId.Value,
                 CreatedAt = DateTime.UtcNow,
+                UpdatedBy = userId.Value,
                 UpdatedAt = DateTime.UtcNow
             };
 
@@ -175,8 +194,8 @@ public class TransactionsController : ControllerBase
             // Update subsequent transactions' running balances
             await RecalculateRunningBalances(dto.CustomerId, transaction.TransactionDate);
 
-            _logger.LogInformation("Credit transaction created: {Id} for customer {CustomerId}", 
-                transaction.Id, dto.CustomerId);
+            _logger.LogInformation("Credit transaction created: {Id} for customer {CustomerId} by user {UserId}", 
+                transaction.Id, dto.CustomerId, userId.Value);
 
             return CreatedAtAction(nameof(GetById), new { id = transaction.Id }, 
                 new { id = transaction.Id, message = "Credit transaction created successfully" });
@@ -194,12 +213,25 @@ public class TransactionsController : ControllerBase
     {
         try
         {
-            // Validate customer exists
+            // Get current user ID
+            var userId = _currentUser.UserId;
+            if (!userId.HasValue)
+            {
+                return Unauthorized(new { message = "User not authenticated" });
+            }
+
+            // Validate customer exists and is active
             var customer = await _context.Customers
                 .FirstOrDefaultAsync(c => c.Id == dto.CustomerId && c.IsActive);
 
             if (customer == null)
                 return BadRequest(new { message = "Customer not found or inactive" });
+
+            // Check if customer is settled
+            if (customer.IsSettled)
+            {
+                return BadRequest(new { message = "Cannot create transactions for settled customers. Please unsettle the customer first." });
+            }
 
             // Get last transaction for running balance
             var lastTransaction = await _context.Transactions
@@ -224,7 +256,9 @@ public class TransactionsController : ControllerBase
                 TransactionType = TransactionType.Debit,
                 FinancialYear = dto.TransactionDate.Year,
                 Remark = dto.Remark,
+                CreatedBy = userId.Value,
                 CreatedAt = DateTime.UtcNow,
+                UpdatedBy = userId.Value,
                 UpdatedAt = DateTime.UtcNow
             };
 
@@ -234,8 +268,8 @@ public class TransactionsController : ControllerBase
             // Update subsequent transactions' running balances
             await RecalculateRunningBalances(dto.CustomerId, transaction.TransactionDate);
 
-            _logger.LogInformation("Debit transaction created: {Id} for customer {CustomerId}", 
-                transaction.Id, dto.CustomerId);
+            _logger.LogInformation("Debit transaction created: {Id} for customer {CustomerId} by user {UserId}", 
+                transaction.Id, dto.CustomerId, userId.Value);
 
             return CreatedAtAction(nameof(GetById), new { id = transaction.Id }, 
                 new { id = transaction.Id, message = "Debit transaction created successfully" });
@@ -253,11 +287,25 @@ public class TransactionsController : ControllerBase
     {
         try
         {
+            // Get current user ID
+            var userId = _currentUser.UserId;
+            if (!userId.HasValue)
+            {
+                return Unauthorized(new { message = "User not authenticated" });
+            }
+
             var transaction = await _context.Transactions
+                .Include(t => t.Customer)
                 .FirstOrDefaultAsync(t => t.Id == id && !t.IsDeleted);
 
             if (transaction == null)
                 return NotFound(new { message = "Transaction not found" });
+
+            // Check if customer is settled
+            if (transaction.Customer.IsSettled)
+            {
+                return BadRequest(new { message = "Cannot edit transactions for settled customers" });
+            }
 
             // Update fields
             if (dto.TransactionDate.HasValue)
@@ -283,6 +331,7 @@ public class TransactionsController : ControllerBase
             if (dto.Remark != null)
                 transaction.Remark = dto.Remark;
 
+            transaction.UpdatedBy = userId.Value;
             transaction.UpdatedAt = DateTime.UtcNow;
             transaction.FinancialYear = transaction.TransactionDate.Year;
 
@@ -291,7 +340,7 @@ public class TransactionsController : ControllerBase
             // Recalculate running balances for this customer
             await RecalculateRunningBalances(transaction.CustomerId, DateTime.MinValue);
 
-            _logger.LogInformation("Transaction updated: {Id}", id);
+            _logger.LogInformation("Transaction updated: {Id} by user {UserId}", id, userId.Value);
 
             return Ok(new { message = "Transaction updated successfully" });
         }
@@ -308,20 +357,53 @@ public class TransactionsController : ControllerBase
     {
         try
         {
-            // Verify password (you should implement proper password verification)
-            // For now, this is a placeholder
+            // Get current user
+            var userId = _currentUser.UserId;
+            var username = _currentUser.Username;
+
+            if (!userId.HasValue || string.IsNullOrEmpty(username))
+            {
+                return Unauthorized(new { message = "User not authenticated" });
+            }
+
+            // Validate password is provided
             if (string.IsNullOrEmpty(dto.Password))
                 return BadRequest(new { message = "Password is required" });
 
+            // Verify password
+            var user = await _context.Users
+                .FirstOrDefaultAsync(u => u.Id == userId.Value && u.IsActive);
+
+            if (user == null)
+            {
+                return Unauthorized(new { message = "User not found" });
+            }
+
+            // Verify password using BCrypt
+            if (!BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash))
+            {
+                return BadRequest(new { message = "Invalid password" });
+            }
+
+            // Get transaction
             var transaction = await _context.Transactions
+                .Include(t => t.Customer)
                 .FirstOrDefaultAsync(t => t.Id == id && !t.IsDeleted);
 
             if (transaction == null)
                 return NotFound(new { message = "Transaction not found" });
 
+            // Check if customer is settled
+            if (transaction.Customer.IsSettled)
+            {
+                return BadRequest(new { message = "Cannot delete transactions for settled customers" });
+            }
+
             // Soft delete
             transaction.IsDeleted = true;
             transaction.DeletedAt = DateTime.UtcNow;
+            transaction.DeletedBy = userId.Value;
+            transaction.UpdatedBy = userId.Value;
             transaction.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
@@ -329,7 +411,7 @@ public class TransactionsController : ControllerBase
             // Recalculate running balances
             await RecalculateRunningBalances(transaction.CustomerId, DateTime.MinValue);
 
-            _logger.LogInformation("Transaction deleted: {Id}", id);
+            _logger.LogInformation("Transaction deleted: {Id} by user {UserId}", id, userId.Value);
 
             return Ok(new { message = "Transaction deleted successfully" });
         }

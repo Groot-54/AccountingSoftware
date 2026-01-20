@@ -5,6 +5,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
 using AccountingSystem.Infrastructure.Data;
+using AccountingSystem.API.Services;
 using AccountingSystem.Application;
 using AccountingSystem.Infrastructure;
 using FluentValidation;
@@ -106,6 +107,9 @@ builder.Services.AddCors(options =>
     });
 });
 
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+
 // Application Services (will be added via DI)
 // builder.Services.AddApplicationServices();
 // builder.Services.AddInfrastructureServices();
@@ -135,6 +139,6 @@ app.MapGet("/api/health", () => Results.Ok(new
     timestamp = DateTime.UtcNow 
 }));
 
-await app.SeedDatabase();
+// await app.SeedDatabase();
 
 app.Run();
