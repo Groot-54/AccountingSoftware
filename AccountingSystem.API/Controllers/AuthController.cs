@@ -277,9 +277,15 @@ public class AuthController : ControllerBase
     private string GenerateAccessToken(User user)
     {
         var jwtSettings = _configuration.GetSection("JwtSettings");
-        var secretKey = jwtSettings["SecretKey"];
+        var secretKey = jwtSettings["SecretKey"] ?? throw new InvalidOperationException("JwtSettings:SecretKey is not configured");
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+        var expiryMinutesValue = jwtSettings["AccessTokenExpirationMinutes"]?? throw new InvalidOperationException("JwtSettings:AccessTokenExpirationMinutes is not configured");
+
+        if (!int.TryParse(expiryMinutesValue, out var expiryMinutes))
+        {
+            throw new InvalidOperationException("JwtSettings:AccessTokenExpirationMinutes must be an integer");
+        }
 
         // FIXED: Use standard ClaimTypes that match CurrentUserService
         var claims = new[]
@@ -302,7 +308,7 @@ public class AuthController : ControllerBase
             issuer: jwtSettings["Issuer"],
             audience: jwtSettings["Audience"],
             claims: claims,
-            expires: DateTime.UtcNow.AddMinutes(int.Parse(jwtSettings["AccessTokenExpirationMinutes"])),
+            expires: DateTime.UtcNow.AddMinutes(expiryMinutes),
             signingCredentials: credentials
         );
 

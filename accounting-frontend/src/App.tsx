@@ -2,7 +2,8 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { ProtectedRoute } from './components/ProtectedRoute';
-import { LoginForm } from './features/auth/components/LoginForm';
+// import { LoginForm } from './features/auth/components/LoginForm';
+import Login from './pages/Login';
 import { Layout } from './components/shared/Layout';
 import Dashboard from './pages/Dashboard';
 import Customers from './pages/Customers';
@@ -21,7 +22,8 @@ function App() {
       <Toaster position="top-right" richColors />
       <Routes>
         {/* Public routes */}
-        <Route path="/login" element={<LoginForm />} />
+        {/* <Route path="/login" element={<LoginForm />} /> */}
+        <Route path="/login" element={<Login />} />
 
         {/* Protected routes */}
         <Route
