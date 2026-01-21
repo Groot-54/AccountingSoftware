@@ -1,8 +1,9 @@
-// src/pages/CustomerReport.tsx - REFACTORED
+// src/pages/CustomerReport.tsx - WITH EDIT/DELETE FUNCTIONALITY
 import { useState, useEffect } from 'react';
-import { Download, Printer, Calendar } from 'lucide-react';
+import { Download, Printer, Calendar, Edit2, Trash2 } from 'lucide-react';
 import { useCustomerLedger, useAvailableYears } from '../features/reports/hooks/useReports';
 import { useCustomers } from '../features/customers/hooks/useCustomers';
+import { useUpdateTransaction, useDeleteTransaction } from '../features/transactions/hooks/useTransactions';
 import { formatCurrency, formatDate, getBalanceColor } from '@/lib/utils';
 
 import {
@@ -15,6 +16,8 @@ import {
   LoadingSpinner,
 } from '@/components/ui';
 import { PageHeader } from '@/components/shared/PageHeader';
+import { PasswordModal } from '@/components/shared/PasswordModal';
+import { TransactionEditModal } from '@/components/shared/TransactionEditModal';
 
 export default function CustomerReport() {
   const currentYear = new Date().getFullYear();
@@ -24,17 +27,64 @@ export default function CustomerReport() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
+  const [editModalState, setEditModalState] = useState<{
+    isOpen: boolean;
+    transaction: any | null;
+  }>({ isOpen: false, transaction: null });
+
+  const [deleteModalState, setDeleteModalState] = useState<{
+    isOpen: boolean;
+    transactionId: number | null;
+  }>({ isOpen: false, transactionId: null });
+
   const { customers } = useCustomers();
   const { data: yearsData } = useAvailableYears();
 
   const params = filterType === 'year' ? { year: selectedYear } : { startDate, endDate };
   const { data: ledger, isLoading } = useCustomerLedger(selectedCustomerId || 0, params);
 
+  const { mutateAsync: updateTransaction, isPending: isUpdating } = useUpdateTransaction();
+  const { mutateAsync: deleteTransaction, isPending: isDeleting } = useDeleteTransaction();
+
   useEffect(() => {
     if (customers && customers.length > 0 && !selectedCustomerId) {
       setSelectedCustomerId(customers[0].id);
     }
   }, [customers, selectedCustomerId]);
+
+  const handleEditClick = (entry: any) => {
+    setEditModalState({
+      isOpen: true,
+      transaction: {
+        id: entry.id,
+        transactionDate: entry.date,
+        description: entry.description,
+        amount: entry.creditAmount > 0 ? entry.creditAmount : entry.debitAmount,
+        remark: entry.remark,
+        transactionType: entry.creditAmount > 0 ? 'Credit' : 'Debit'
+      }
+    });
+  };
+
+  const handleEditSave = async (id: number, data: any) => {
+    await updateTransaction({ id, data });
+    setEditModalState({ isOpen: false, transaction: null });
+  };
+
+  const handleDeleteClick = (transactionId: number) => {
+    setDeleteModalState({ isOpen: true, transactionId });
+  };
+
+  const handleDeleteConfirm = async (password: string) => {
+    if (!deleteModalState.transactionId) return;
+    
+    await deleteTransaction({ 
+      id: deleteModalState.transactionId, 
+      password 
+    });
+    
+    setDeleteModalState({ isOpen: false, transactionId: null });
+  };
 
   const handlePrint = () => window.print();
 
@@ -116,6 +166,30 @@ export default function CustomerReport() {
       headerClassName: 'text-left',
       className: 'text-gray-500 dark:text-gray-400',
       render: (e: any) => e.remark || '-',
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      headerClassName: 'text-center',
+      className: 'text-center',
+      render: (e: any) => (
+        <div className="flex items-center justify-center gap-2">
+          <button
+            onClick={() => handleEditClick(e)}
+            className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
+            title="Edit transaction"
+          >
+            <Edit2 size={18} />
+          </button>
+          <button
+            onClick={() => handleDeleteClick(e.id)}
+            className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 transition-colors"
+            title="Delete transaction"
+          >
+            <Trash2 size={18} />
+          </button>
+        </div>
+      ),
     },
   ];
 
@@ -278,6 +352,7 @@ export default function CustomerReport() {
                     </span>
                   </td>
                   <td className="px-4 py-3"></td>
+                  <td className="px-4 py-3"></td>
                 </tr>
 
                 {/* Transactions */}
@@ -307,12 +382,33 @@ export default function CustomerReport() {
                     </span>
                   </td>
                   <td className="px-4 py-3"></td>
+                  <td className="px-4 py-3"></td>
                 </tr>
               </tbody>
             </table>
           </div>
         </div>
       ) : null}
+
+      {/* Edit Transaction Modal */}
+      <TransactionEditModal
+        isOpen={editModalState.isOpen}
+        onClose={() => setEditModalState({ isOpen: false, transaction: null })}
+        transaction={editModalState.transaction}
+        onSave={handleEditSave}
+        isLoading={isUpdating}
+      />
+
+      {/* Delete Confirmation Modal */}
+      <PasswordModal
+        isOpen={deleteModalState.isOpen}
+        onClose={() => setDeleteModalState({ isOpen: false, transactionId: null })}
+        onConfirm={handleDeleteConfirm}
+        title="Confirm Deletion"
+        description="This will delete the transaction and recalculate running balances. Enter your password to confirm:"
+        confirmButtonText="Delete"
+        isLoading={isDeleting}
+      />
 
       <style>{`
         @media print {
